@@ -120,21 +120,21 @@ class Service(AbstractBase):
         if "name" not in kwargs:
             self.set_name()
 
-    def convert_result(self, result, service):
-        if service.conversion_method == "none" or "result" not in result:
+    def convert_result(self, result):
+        if self.conversion_method == "none" or "result" not in result:
             return result
         try:
-            if service.conversion_method == "text":
+            if self.conversion_method == "text":
                 result["result"] = str(result["result"])
-            elif service.conversion_method == "json":
+            elif self.conversion_method == "json":
                 result["result"] = loads(result["result"])
-            elif service.conversion_method == "xml":
+            elif self.conversion_method == "xml":
                 result["result"] = parse(result["result"])
         except (ExpatError, JSONDecodeError) as exc:
             result = {
                 "success": False,
                 "text_response": result,
-                "error": f"Conversion to {service.conversion_method} failed",
+                "error": f"Conversion to {self.conversion_method} failed",
                 "exception": str(exc),
             }
         return result
@@ -578,7 +578,7 @@ class Run(AbstractBase):
             result_kw["parent_device"] = self.parent_device_id
         if device:
             result_kw["device"] = device.id
-        if self.parent_runtime == self.runtime and not device:
+        if not device:
             for service_id, log in app.run_logs.pop(self.runtime, {}).items():
                 factory(
                     "service_log",
@@ -715,7 +715,7 @@ class Run(AbstractBase):
         if device:
             log += f" - DEVICE {device if isinstance(device, str) else device.name}"
         log += f" : {content}"
-        app.run_logs[self.parent_runtime][service.id].append(log)
+        app.run_logs[self.runtime][service.id].append(log)
 
     def build_notification(self, service, results):
         notification = {

@@ -81,7 +81,7 @@ class GenericFileTransferService(Service):
                     ),
                     device,
                 )
-                run.transfer_file(service, ssh_client, pairs)
+                self.transfer_file(ssh_client, pairs)
         elif not Path(source).is_file():
             success = False
             result = (
