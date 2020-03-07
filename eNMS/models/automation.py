@@ -454,21 +454,6 @@ class Run(AbstractBase):
             Session.commit()
         return results
 
-    @staticmethod
-    def get_device_result(args):
-        device_id, runtime, payload, results = args
-        device = fetch("device", id=device_id)
-        run = fetch("run", runtime=runtime)
-        results.append(run.get_results(payload, device))
-
-    def queue_worker(self):
-        while True:
-            args = self.queue.get()
-            if args is None:
-                break
-            self.get_device_result(args)
-            self.queue.task_done()
-
     def device_iteration(self, payload, device):
         derived_devices = self.compute_devices_from_query(
             self.service.iteration_devices,
@@ -493,6 +478,17 @@ class Run(AbstractBase):
         self.run_state["summary"][key].append(device.name)
         return success
 
+    def queue_worker(self):
+        while True:
+            args = self.queue.get()
+            if not args:
+                break
+            device_id, runtime, payload = args
+            device = fetch("device", id=device_id)
+            run = fetch("run", runtime=runtime)
+            run.get_results(payload, device)
+            self.queue.task_done()
+
     def device_run(self, payload):
         self.devices = self.compute_devices(payload)
         if self.run_method != "once":
@@ -511,9 +507,9 @@ class Run(AbstractBase):
         elif self.run_method != "per_device":
             return self.get_results(payload)
         else:
-            results, threads = [], []
+            threads = []
             for device in self.devices:
-                self.queue.put((device.id, self.runtime, payload, results))
+                self.queue.put((device.id, self.runtime, payload))
             for i in range(10):
                 t = Thread(target=self.queue_worker)
                 threads.append(t)
@@ -522,10 +518,9 @@ class Run(AbstractBase):
                 self.queue.put(None)
             for t in threads:
                 t.join()
-            return {
-                "success": all(result["success"] for result in results),
-                "runtime": self.runtime,
-            }
+            result = self.run_state["progress"]["device"]
+            success = result["total"] == result["success"] + result["skipped"]
+            return {"success": success}
 
     def create_result(self, results, device=None):
         self.success = results["success"]
