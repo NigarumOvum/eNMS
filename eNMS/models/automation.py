@@ -120,6 +120,25 @@ class Service(AbstractBase):
         if "name" not in kwargs:
             self.set_name()
 
+    def convert_result(self, result, service):
+        if service.conversion_method == "none" or "result" not in result:
+            return result
+        try:
+            if service.conversion_method == "text":
+                result["result"] = str(result["result"])
+            elif service.conversion_method == "json":
+                result["result"] = loads(result["result"])
+            elif service.conversion_method == "xml":
+                result["result"] = parse(result["result"])
+        except (ExpatError, JSONDecodeError) as exc:
+            result = {
+                "success": False,
+                "text_response": result,
+                "error": f"Conversion to {service.conversion_method} failed",
+                "exception": str(exc),
+            }
+        return result
+
     def update(self, **kwargs):
         if kwargs["scoped_name"] != self.scoped_name:
             self.set_name(kwargs["scoped_name"])
@@ -142,6 +161,23 @@ class Service(AbstractBase):
     @property
     def filename(self):
         return app.strip_all(self.name)
+
+
+    def match_dictionary(self, result, match, first=True):
+        if self.validation_method == "dict_equal":
+            return result == self.dict_match
+        else:
+            match_copy = deepcopy(match) if first else match
+            if isinstance(result, dict):
+                for k, v in result.items():
+                    if k in match_copy and match_copy[k] == v:
+                        match_copy.pop(k)
+                    else:
+                        self.match_dictionary(v, match_copy, False)
+            elif isinstance(result, list):
+                for item in result:
+                    self.match_dictionary(item, match_copy, False)
+            return not match_copy
 
     def set_name(self, name=None):
         if self.shared:
@@ -436,8 +472,6 @@ class Run(AbstractBase):
             self.run_state["status"] = self.status
             if self.run_state["success"] is not False:
                 self.success = self.run_state["success"] = results["success"]
-            if self.service.send_notification:
-                results = self.notify(results)
             app.service_db[self.service.id]["runs"] -= 1
             if not app.service_db[self.id]["runs"]:
                 self.service.status = "Idle"
@@ -571,7 +605,7 @@ class Run(AbstractBase):
                     or self.runtime == self.parent_runtime
                 ):
                     self.close_device_connection(device.name)
-                self.convert_result(results)
+                service.convert_result(results)
                 if "success" not in results:
                     results["success"] = True
                 try:
@@ -654,6 +688,8 @@ class Run(AbstractBase):
             next_jobs = self.get_next_jobs(results, device, service)
             print(f"NEXT JOBS FOR {device.name}", next_jobs)
         self.log("info", "FINISHED", device)
+        if service.send_notification:
+            results = service.notify(results)
         if service.waiting_time:
             self.log("info", f"SLEEP {service.waiting_time} seconds...", device)
             sleep(service.waiting_time)
@@ -681,7 +717,7 @@ class Run(AbstractBase):
         log += f" : {content}"
         app.run_logs[self.parent_runtime][service.id].append(log)
 
-    def build_notification(self, results, service):
+    def build_notification(self, service, results):
         notification = {
             "Service": f"{service.name} ({service.type})",
             "Runtime": self.runtime,
@@ -700,9 +736,9 @@ class Run(AbstractBase):
                 notification["PASSED"] = summary["success"]
         return notification
 
-    def notify(self, results, service):
+    def notify(self, service, results):
         self.log("info", f"Sending {service.send_notification_method} notification...")
-        notification = self.build_notification(results)
+        notification = self.build_notification(service, results)
         file_content = deepcopy(notification)
         if service.include_device_results:
             file_content["Device Results"] = {}
@@ -764,25 +800,6 @@ class Run(AbstractBase):
                 self.sub(service.custom_password, locals()),
             )
 
-    def convert_result(self, result, service):
-        if service.conversion_method == "none" or "result" not in result:
-            return result
-        try:
-            if service.conversion_method == "text":
-                result["result"] = str(result["result"])
-            elif service.conversion_method == "json":
-                result["result"] = loads(result["result"])
-            elif service.conversion_method == "xml":
-                result["result"] = parse(result["result"])
-        except (ExpatError, JSONDecodeError) as exc:
-            result = {
-                "success": False,
-                "text_response": result,
-                "error": f"Conversion to {service.conversion_method} failed",
-                "exception": str(exc),
-            }
-        return result
-
     def validate_result(self, results, service, device):
         if service.validation_method == "text":
             match = self.sub(service.content_match, locals())
@@ -797,25 +814,9 @@ class Run(AbstractBase):
             )
         else:
             match = self.sub(service.dict_match, locals())
-            success = self.match_dictionary(results["result"], match)
+            success = service.match_dictionary(results["result"], match)
         results["success"] = not success if service.negative_logic else success
         results.update({"match": match, "negative_logic": service.negative_logic})
-
-    def match_dictionary(self, result, match, first=True):
-        if self.validation_method == "dict_equal":
-            return result == self.dict_match
-        else:
-            match_copy = deepcopy(match) if first else match
-            if isinstance(result, dict):
-                for k, v in result.items():
-                    if k in match_copy and match_copy[k] == v:
-                        match_copy.pop(k)
-                    else:
-                        self.match_dictionary(v, match_copy, False)
-            elif isinstance(result, list):
-                for item in result:
-                    self.match_dictionary(item, match_copy, False)
-            return not match_copy
 
     def payload_helper(
         self,
