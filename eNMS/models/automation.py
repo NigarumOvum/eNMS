@@ -645,9 +645,9 @@ class Run(AbstractBase):
             self.run_state["progress"]["device"][status] += 1
             self.run_state["summary"][status].append(device.name)
             self.create_result({"runtime": app.get_time(), **results}, service, device)
-        """ if self.workflow:
-            next_jobs = self.get_next_jobs(results, device)
-            print(f"NEXT JOBS FOR {device.name}", next_jobs) """
+        if self.service.type == "workflow" and service in self.service.services:
+            next_jobs = self.get_next_jobs(results, device, service)
+            print(f"NEXT JOBS FOR {device.name}", next_jobs)
         self.log("info", "FINISHED", device)
         if self.waiting_time:
             self.log("info", f"SLEEP {self.waiting_time} seconds...", device)
@@ -655,13 +655,10 @@ class Run(AbstractBase):
         Session.commit()
         return results
 
-    def get_next_jobs(self, results, device):
+    def get_next_jobs(self, results, device, service):
         edge_type = "success" if results["success"] else "failure"
-        print("READ"*500)
-        print(self, device)
-        for service, _ in self.service.adjacent_services(self.workflow, "source", edge_type):
-            print(service)
-            print(self.parent.run_state)
+        for service, _ in service.adjacent_services(self.service, "destination", edge_type):
+            app.run_queue[self.parent_runtime].put((self.parent_runtime, service.id, device.id if device else None))
 
     def log(self, severity, content, device=None):
         log_level = int(self.log_level)
