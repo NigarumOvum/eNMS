@@ -52,6 +52,7 @@ same for NAPALM connection.
 - Test: all services
 - file transfer service (refactor file transfer function)
 - validation mechanism
+- notification mechanism 
 
 Version 3.20.1
 --------------

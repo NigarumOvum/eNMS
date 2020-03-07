@@ -669,40 +669,42 @@ class Run(AbstractBase):
                 (self.parent_runtime, service.id, device.id if device else None)
             )
 
-    def log(self, severity, content, device=None):
+    def log(self, severity, content, device=None, service=None):
+        if not service:
+            service = self.service
         log_level = int(self.service.log_level)
         if not log_level or severity not in app.log_levels[log_level - 1 :]:
             return
-        log = f"{app.get_time()} - {severity} - SERVICE {self.service.scoped_name}"
+        log = f"{app.get_time()} - {severity} - SERVICE {service.scoped_name}"
         if device:
             log += f" - DEVICE {device if isinstance(device, str) else device.name}"
         log += f" : {content}"
-        app.run_logs[self.parent_runtime][self.service_id].append(log)
+        app.run_logs[self.parent_runtime][service.id].append(log)
 
-    def build_notification(self, results):
+    def build_notification(self, results, service):
         notification = {
-            "Service": f"{self.service.name} ({self.service.type})",
+            "Service": f"{service.name} ({service.type})",
             "Runtime": self.runtime,
             "Status": "PASS" if results["success"] else "FAILED",
         }
-        if self.notification_header:
-            notification["Header"] = self.notification_header
-        if self.include_link_in_summary:
+        if service.notification_header:
+            notification["Header"] = service.notification_header
+        if service.include_link_in_summary:
             address = app.settings["app"]["address"]
-            notification["Link"] = f"{address}/view_service_results/{self.id}"
+            notification["Link"] = f"{address}/view_service_results/{service.id}"
         summary = results["summary"]
         if summary:
             if summary["failure"]:
                 notification["FAILED"] = summary["failure"]
-            if summary["success"] and not self.display_only_failed_nodes:
+            if summary["success"] and not service.display_only_failed_nodes:
                 notification["PASSED"] = summary["success"]
         return notification
 
-    def notify(self, results):
-        self.log("info", f"Sending {self.send_notification_method} notification...")
+    def notify(self, results, service):
+        self.log("info", f"Sending {service.send_notification_method} notification...")
         notification = self.build_notification(results)
         file_content = deepcopy(notification)
-        if self.include_device_results:
+        if service.include_device_results:
             file_content["Device Results"] = {}
             for device in self.devices:
                 device_result = fetch(
@@ -715,17 +717,17 @@ class Run(AbstractBase):
                 if device_result:
                     file_content["Device Results"][device.name] = device_result.result
         try:
-            if self.send_notification_method == "mail":
+            if service.send_notification_method == "mail":
                 filename = self.runtime.replace(".", "").replace(":", "")
                 status = "PASS" if results["success"] else "FAILED"
                 result = app.send_email(
-                    f"{status}: {self.service.name} run by {self.creator}",
+                    f"{status}: {service.name} run by {self.creator}",
                     app.str_dict(notification),
-                    recipients=self.mail_recipient,
+                    recipients=service.mail_recipient,
                     filename=f"results-{filename}.txt",
                     file_content=app.str_dict(file_content),
                 )
-            elif self.send_notification_method == "slack":
+            elif service.send_notification_method == "slack":
                 result = SlackClient(environ.get("SLACK_TOKEN")).api_call(
                     "chat.postMessage",
                     channel=app.settings["slack"]["channel"],
@@ -762,21 +764,21 @@ class Run(AbstractBase):
                 self.sub(service.custom_password, locals()),
             )
 
-    def convert_result(self, result):
-        if self.conversion_method == "none" or "result" not in result:
+    def convert_result(self, result, service):
+        if service.conversion_method == "none" or "result" not in result:
             return result
         try:
-            if self.conversion_method == "text":
+            if service.conversion_method == "text":
                 result["result"] = str(result["result"])
-            elif self.conversion_method == "json":
+            elif service.conversion_method == "json":
                 result["result"] = loads(result["result"])
-            elif self.conversion_method == "xml":
+            elif service.conversion_method == "xml":
                 result["result"] = parse(result["result"])
         except (ExpatError, JSONDecodeError) as exc:
             result = {
                 "success": False,
                 "text_response": result,
-                "error": f"Conversion to {self.conversion_method} failed",
+                "error": f"Conversion to {service.conversion_method} failed",
                 "exception": str(exc),
             }
         return result
@@ -920,9 +922,9 @@ class Run(AbstractBase):
     def space_deleter(self, input):
         return "".join(input.split())
 
-    def update_netmiko_connection(self, connection):
+    def update_netmiko_connection(self, service, connection):
         for property in ("fast_cli", "timeout", "global_delay_factor"):
-            service_value = getattr(self.service, property)
+            service_value = getattr(service.service, property)
             if service_value:
                 setattr(connection, property, service_value)
         try:
@@ -930,22 +932,22 @@ class Run(AbstractBase):
                 self.log("error", f"Netmiko 'check_config_mode' method is missing.")
                 return
             mode = connection.check_config_mode()
-            if mode and not self.config_mode:
+            if mode and not service.config_mode:
                 connection.exit_config_mode()
-            elif self.config_mode and not mode:
+            elif service.config_mode and not mode:
                 connection.config_mode()
         except Exception as exc:
             self.log("error", f"Failed to honor the config mode {exc}")
         return connection
 
     def netmiko_connection(self, service, device):
-        connection = self.get_or_close_connection("netmiko", device.name)
+        connection = self.get_or_close_connection(service, "netmiko", device.name)
         if connection:
             self.log("info", "Using cached Netmiko connection", device)
-            return self.update_netmiko_connection(connection)
+            return self.update_netmiko_connection(service, connection)
         self.log("info", "Opening new Netmiko connection", device)
         username, password = self.get_credentials(service, device)
-        driver = device.netmiko_driver if service.use_device_driver else self.driver
+        driver = device.netmiko_driver if service.use_device_driver else service.driver
         netmiko_connection = ConnectHandler(
             device_type=driver,
             ip=device.ip_address,
@@ -968,7 +970,7 @@ class Run(AbstractBase):
         return netmiko_connection
 
     def napalm_connection(self, service, device):
-        connection = self.get_or_close_connection("napalm", device.name)
+        connection = self.get_or_close_connection(service, "napalm", device.name)
         if connection:
             self.log("info", "Using cached NAPALM connection", device)
             return connection
@@ -993,11 +995,11 @@ class Run(AbstractBase):
         app.connections_cache["napalm"][self.runtime][device.name] = napalm_connection
         return napalm_connection
 
-    def get_or_close_connection(self, library, device):
+    def get_or_close_connection(self, service, library, device):
         connection = self.get_connection(library, device)
         if not connection:
             return
-        if self.start_new_connection:
+        if service.start_new_connection:
             return self.disconnect(library, device, connection)
         if library == "napalm":
             if connection.is_alive():
