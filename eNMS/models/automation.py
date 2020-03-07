@@ -273,14 +273,20 @@ class Run(AbstractBase):
         if not kwargs.get("parent_runtime"):
             self.parent_runtime = self.runtime
             self.path = str(self.service.id)
+            self.queue = app.run_queue[self.runtime]
         else:
             self.path = f"{self.parent.path}>{self.service.id}"
+            self.queue = self.original.queue
         if not self.start_services:
             self.start_services = [fetch("service", scoped_name="Start").id]
 
     @property
     def name(self):
         return repr(self)
+
+    @property
+    def original(self):
+        return self if not self.parent else self.parent.original
 
     @property
     def dont_track_changes(self):
@@ -460,6 +466,14 @@ class Run(AbstractBase):
         run = fetch("run", runtime=runtime)
         results.append(run.get_results(payload, device))
 
+    def queue_worker(self):
+        while True:
+            args = self.queue.get()
+            if args is None:
+                break
+            self.get_device_result(args)
+            self.queue.task_done()
+
     def device_iteration(self, payload, device):
         derived_devices = self.compute_devices_from_query(
             self.service.iteration_devices,
@@ -503,15 +517,11 @@ class Run(AbstractBase):
             return self.get_results(payload)
         else:
             results = []
-            processes = min(len(self.devices), self.max_processes)
-            process_args = [
-                (device.id, self.runtime, payload, results)
-                for device in self.devices
-            ]
-            pool = ThreadPool(processes=processes)
-            pool.map(self.get_device_result, process_args)
-            pool.close()
-            pool.join()
+            for device in self.devices:
+                self.queue.put((device.id, self.runtime, payload, results))
+            for i in range(10):
+                t = Thread(target=self.queue_worker)
+                t.start()
             return {
                 "success": all(result["success"] for result in results),
                 "runtime": self.runtime,
@@ -634,7 +644,6 @@ class Run(AbstractBase):
             status = "success" if results["success"] else "failure"
             self.run_state["progress"]["device"][status] += 1
             self.run_state["summary"][status].append(device.name)
-
             self.create_result({"runtime": app.get_time(), **results}, device)
         self.log("info", "FINISHED", device)
         if self.waiting_time:
