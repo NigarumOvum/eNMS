@@ -45,6 +45,10 @@ Some of them have been removed:
 - substitution and python query are now a keyword
 - no validation is a keyword too
 
+#################### MULTIPROCESSING REFACTORING ITW
+- Netmiko connection now takes the SERVICE as first parameter: netmiko_connection = run.netmiko_connection(self, device)
+same for NAPALM connection.
+
 Version 3.20.1
 --------------
 
