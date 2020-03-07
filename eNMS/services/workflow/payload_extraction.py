@@ -36,10 +36,10 @@ class PayloadExtractionService(Service):
     def job(self, run, device=None):
         result, success = {}, True
         for i in range(1, 4):
-            variable = getattr(run, f"variable{i}")
+            variable = getattr(self, f"variable{i}")
             if not variable:
                 continue
-            query = getattr(run, f"query{i}")
+            query = getattr(self, f"query{i}")
             try:
                 variables = locals()
                 variables.pop("query")
@@ -48,9 +48,9 @@ class PayloadExtractionService(Service):
                 success = False
                 result[variable] = f"Wrong Python query for {variable} ({exc})"
                 continue
-            match_type = getattr(run, f"match_type{i}")
-            match = getattr(run, f"match{i}")
-            operation = getattr(run, f"operation{i}")
+            match_type = getattr(self, f"match_type{i}")
+            match = getattr(self, f"match{i}")
+            operation = getattr(self, f"operation{i}")
             value = (
                 value
                 if match_type == "none"

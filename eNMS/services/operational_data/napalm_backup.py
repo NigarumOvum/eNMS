@@ -37,7 +37,7 @@ class NapalmBackupService(ConnectionService):
             run.log("info", "Fetching Operational Data", device)
             for data_type in ("configuration_getters", "operational_data_getters"):
                 result = {}
-                for getter in getattr(run, data_type):
+                for getter in getattr(self, data_type):
                     try:
                         output = app.str_dict(getattr(napalm_connection, getter)())
                         for r in self.replacements:
