@@ -45,7 +45,6 @@ Device by device
 ****************
 
   - Uses the devices configured at **workflow** level.
-  - Multiprocessing must be enabled at **workflow** level.
   - Workflow will run for each device independently, one at a time if multiprocessig is disabled
     in parallel otherwise.
 
@@ -53,7 +52,6 @@ Service by service using workflow targets
 *****************************************
 
   - Uses the devices configured at **workflow** level.
-  - Multiprocessing must be enabled at **service** level.
   - The workflow will run one service at a time, but each device can follow a different path depending on
     the results of each service for that device.
 
@@ -61,7 +59,6 @@ Service by service using service targets
 ****************************************
 
   - Uses the devices configured at **service** level.
-  - Multiprocessing must be enabled at **service** level.
   - The workflow will run one service at a time. A service is considered successful if it ran successfully
     on all of its targets (if it fails on at least one target, it is considered to have failed).
 

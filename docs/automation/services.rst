@@ -81,8 +81,7 @@ The list of targets will be the union of all devices coming from these propertie
   - ``Query Property Type`` Indicates whether the iterable contains IP addresses of names, for eNMS to convert the list
     to actual devices from the inventory.
 
-- ``Multiprocessing`` Run on devices **in parallel** instead of **sequentially**.
-- ``Maximum Number of Processes`` (default: ``15``)
+- ``Number of Processes`` (default: ``15``) How many devices to run on **in parallel**.
 
 Iteration
 """""""""

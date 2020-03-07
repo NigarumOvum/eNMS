@@ -440,18 +440,6 @@
                   {{ form.device_query_property(id=form_type + '-device_query_property',
                   class="form-control add-id") }}
                 </div>
-                <fieldset>
-                  <div class="item">
-                    <input
-                      id="{{ form_type }}-multiprocessing"
-                      name="multiprocessing"
-                      class="add-id"
-                      type="checkbox"
-                      value="y"
-                    />
-                    <label>Multiprocessing</label>
-                  </div>
-                </fieldset>
                 <label>Maximum number of processes</label>
                 <div class="form-group">
                   {{ form.max_processes(id=form_type + '-max_processes',

@@ -102,7 +102,6 @@ class Service(AbstractBase):
     log_level = Column(Integer, default=1)
     runs = relationship("Run", back_populates="service", cascade="all, delete-orphan")
     maximum_runs = Column(Integer, default=1)
-    multiprocessing = Column(Boolean, default=False)
     max_processes = Column(Integer, default=5)
     conversion_method = Column(SmallString, default="none")
     validation_method = Column(SmallString, default="none")
@@ -518,22 +517,16 @@ class Run(AbstractBase):
         elif self.run_method != "per_device":
             return self.get_results(payload)
         else:
-            if self.multiprocessing and len(self.devices) > 1:
-                results = []
-                processes = min(len(self.devices), self.max_processes)
-                process_args = [
-                    (device.id, self.runtime, payload, results)
-                    for device in self.devices
-                ]
-                pool = ThreadPool(processes=processes)
-                pool.map(self.get_device_result, process_args)
-                pool.close()
-                pool.join()
-            else:
-                results = [
-                    self.get_results(payload, device, commit=False)
-                    for device in self.devices
-                ]
+            results = []
+            processes = min(len(self.devices), self.max_processes)
+            process_args = [
+                (device.id, self.runtime, payload, results)
+                for device in self.devices
+            ]
+            pool = ThreadPool(processes=processes)
+            pool.map(self.get_device_result, process_args)
+            pool.close()
+            pool.join()
             return {
                 "success": all(result["success"] for result in results),
                 "runtime": self.runtime,
@@ -602,7 +595,7 @@ class Run(AbstractBase):
                 results = {"success": False, "result": result}
         return results
 
-    def get_results(self, payload, device=None, commit=True):
+    def get_results(self, payload, device=None):
         self.log("info", "STARTING", device)
         start = datetime.now().replace(microsecond=0)
         skip_service = False
@@ -662,8 +655,7 @@ class Run(AbstractBase):
         if self.waiting_time:
             self.log("info", f"SLEEP {self.waiting_time} seconds...", device)
             sleep(self.waiting_time)
-        if commit:
-            Session.commit()
+        Session.commit()
         return results
 
     def log(self, severity, content, device=None):

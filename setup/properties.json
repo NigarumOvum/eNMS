@@ -54,7 +54,6 @@
          "creator",
          "send_notification",
          "send_notification_method",
-         "multiprocessing",
          "max_processes",
          "number_of_retries",
          "time_between_retries"
@@ -65,7 +64,6 @@
          "creator",
          "send_notification",
          "send_notification_method",
-         "multiprocessing",
          "max_processes",
          "number_of_retries",
          "time_between_retries"
