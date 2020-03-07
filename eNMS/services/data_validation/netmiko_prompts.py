@@ -32,7 +32,7 @@ class NetmikoPromptsService(ConnectionService):
     __mapper_args__ = {"polymorphic_identity": "netmiko_prompts_service"}
 
     def job(self, run, device):
-        netmiko_connection = run.netmiko_connection(device)
+        netmiko_connection = run.netmiko_connection(self, device)
         send_strings = (run.command, run.response1, run.response2, run.response3)
         expect_strings = (run.confirmation1, run.confirmation2, run.confirmation3, None)
         commands = []

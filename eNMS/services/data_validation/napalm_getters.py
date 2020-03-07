@@ -21,7 +21,7 @@ class NapalmGettersService(ConnectionService):
     __mapper_args__ = {"polymorphic_identity": "napalm_getters_service"}
 
     def job(self, run, device):
-        napalm_connection, result = run.napalm_connection(device), {}
+        napalm_connection, result = run.napalm_connection(self, device), {}
         run.log("info", f"Fetching NAPALM getters ({', '.join(run.getters)})", device)
         for getter in run.getters:
             try:

@@ -31,7 +31,7 @@ class NetmikoConfigurationService(ConnectionService):
     __mapper_args__ = {"polymorphic_identity": "netmiko_configuration_service"}
 
     def job(self, run, device):
-        netmiko_connection = run.netmiko_connection(device)
+        netmiko_connection = run.netmiko_connection(self, device)
         config = run.sub(run.content, locals())
         run.log("info", "Pushing Configuration with Netmiko", device)
         netmiko_connection.send_config_set(

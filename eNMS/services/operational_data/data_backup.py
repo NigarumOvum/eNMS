@@ -35,7 +35,7 @@ class DataBackupService(ConnectionService):
         path.mkdir(parents=True, exist_ok=True)
         try:
             device.last_runtime = datetime.now()
-            netmiko_connection = run.netmiko_connection(device)
+            netmiko_connection = run.netmiko_connection(self, device)
             run.log("info", "Fetching Operational Data", device)
             for data in ("configuration", "operational_data"):
                 value = run.sub(getattr(self, f"{data}_command"), locals())

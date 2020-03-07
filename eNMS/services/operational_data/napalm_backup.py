@@ -33,7 +33,7 @@ class NapalmBackupService(ConnectionService):
         path.mkdir(parents=True, exist_ok=True)
         try:
             device.last_runtime = datetime.now()
-            napalm_connection = run.napalm_connection(device)
+            napalm_connection = run.napalm_connection(self, device)
             run.log("info", "Fetching Operational Data", device)
             for data_type in ("configuration_getters", "operational_data_getters"):
                 result = {}

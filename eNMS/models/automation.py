@@ -276,13 +276,16 @@ class Run(AbstractBase):
             self.path = str(self.service.id)
         else:
             self.path = f"{self.parent.path}>{self.service.id}"
-        self.queue = app.run_queue[self.parent_runtime]
         if not self.start_services:
             self.start_services = [fetch("service", scoped_name="Start").id]
 
     @property
     def name(self):
         return repr(self)
+
+    @property
+    def queue(self):
+        return app.run_queue[self.parent_runtime]
 
     @property
     def dont_track_changes(self):
@@ -560,6 +563,7 @@ class Run(AbstractBase):
                 if self.number_of_retries - retries:
                     retry = self.number_of_retries - retries
                     self.log("error", f"RETRY n°{retry}", device)
+
                 results = service.job(self, *args)
                 if device and (
                     getattr(self, "close_connection", False)
@@ -658,7 +662,7 @@ class Run(AbstractBase):
     def get_next_jobs(self, results, device, service):
         edge_type = "success" if results["success"] else "failure"
         for service, _ in service.adjacent_services(self.service, "destination", edge_type):
-            app.run_queue[self.parent_runtime].put((self.parent_runtime, service.id, device.id if device else None))
+            self.queue.put((self.parent_runtime, service.id, device.id if device else None))
 
     def log(self, severity, content, device=None):
         log_level = int(self.log_level)
@@ -741,16 +745,16 @@ class Run(AbstractBase):
             }
         return results
 
-    def get_credentials(self, device):
-        if self.credentials == "device":
+    def get_credentials(self, service, device):
+        if service.credentials == "device":
             return device.username, device.password
-        elif self.credentials == "user":
+        elif service.credentials == "user":
             user = fetch("user", name=self.creator)
             return user.name, user.password
         else:
             return (
-                self.sub(self.service.custom_username, locals()),
-                self.sub(self.service.custom_password, locals()),
+                self.sub(service.custom_username, locals()),
+                self.sub(service.custom_password, locals()),
             )
 
     def convert_result(self, result):
@@ -943,13 +947,13 @@ class Run(AbstractBase):
             self.log("error", f"Failed to honor the config mode {exc}")
         return connection
 
-    def netmiko_connection(self, device):
+    def netmiko_connection(self, service, device):
         connection = self.get_or_close_connection("netmiko", device.name)
         if connection:
             self.log("info", "Using cached Netmiko connection", device)
             return self.update_netmiko_connection(connection)
         self.log("info", "Opening new Netmiko connection", device)
-        username, password = self.get_credentials(device)
+        username, password = self.get_credentials(service, device)
         driver = device.netmiko_driver if self.use_device_driver else self.driver
         netmiko_connection = ConnectHandler(
             device_type=driver,
@@ -978,7 +982,7 @@ class Run(AbstractBase):
             self.log("info", "Using cached NAPALM connection", device)
             return connection
         self.log("info", "Opening new NAPALM connection", device)
-        username, password = self.get_credentials(device)
+        username, password = self.get_credentials(service, device)
         optional_args = self.service.optional_args
         if not optional_args:
             optional_args = {}
