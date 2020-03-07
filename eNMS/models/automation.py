@@ -152,6 +152,20 @@ class Service(AbstractBase):
             workflow = f"[{self.workflows[0].name}] "
         self.name = f"{workflow}{name or self.scoped_name}"
 
+    def transfer_file(self, ssh_client, files):
+        if self.protocol == "sftp":
+            with SFTPClient.from_transport(
+                ssh_client.get_transport(),
+                window_size=self.window_size,
+                max_packet_size=self.max_transfer_size,
+            ) as sftp:
+                for source, destination in files:
+                    getattr(sftp, self.direction)(source, destination)
+        else:
+            with SCPClient(ssh_client.get_transport()) as scp:
+                for source, destination in files:
+                    getattr(scp, self.direction)(source, destination)
+
     def adjacent_services(self, workflow, direction, subtype):
         for edge in getattr(self, f"{direction}s"):
             if edge.subtype == subtype and edge.workflow == workflow:
@@ -810,20 +824,6 @@ class Run(AbstractBase):
                 for item in result:
                     self.match_dictionary(item, match_copy, False)
             return not match_copy
-
-    def transfer_file(self, ssh_client, files):
-        if self.protocol == "sftp":
-            with SFTPClient.from_transport(
-                ssh_client.get_transport(),
-                window_size=self.window_size,
-                max_packet_size=self.max_transfer_size,
-            ) as sftp:
-                for source, destination in files:
-                    getattr(sftp, self.direction)(source, destination)
-        else:
-            with SCPClient(ssh_client.get_transport()) as scp:
-                for source, destination in files:
-                    getattr(scp, self.direction)(source, destination)
 
     def payload_helper(
         self,

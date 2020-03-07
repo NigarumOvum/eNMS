@@ -48,6 +48,10 @@ Some of them have been removed:
 #################### MULTIPROCESSING REFACTORING ITW
 - Netmiko connection now takes the SERVICE as first parameter: netmiko_connection = run.netmiko_connection(self, device)
 same for NAPALM connection.
+- All run.something must be self.something as the OLD __getattr__ trick is GONE.
+- Test: all services
+- file transfer service (refactor file transfer function)
+- validation mechanism
 
 Version 3.20.1
 --------------

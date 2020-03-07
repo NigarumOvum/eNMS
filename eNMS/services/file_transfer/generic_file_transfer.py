@@ -81,7 +81,7 @@ class GenericFileTransferService(Service):
                     ),
                     device,
                 )
-                run.transfer_file(ssh_client, pairs)
+                run.transfer_file(service, ssh_client, pairs)
         elif not Path(source).is_file():
             success = False
             result = (
@@ -90,7 +90,7 @@ class GenericFileTransferService(Service):
             )
         else:
             run.log("info", f"Transferring file {source} to {destination}", device)
-            run.transfer_file(ssh_client, [(source, destination)])
+            self.transfer_file(ssh_client, [(source, destination)])
         ssh_client.close()
         return {"success": success, "result": result}
 
