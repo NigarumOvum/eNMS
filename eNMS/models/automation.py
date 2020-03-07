@@ -308,16 +308,6 @@ class Run(AbstractBase):
     def __repr__(self):
         return f"{self.runtime}: SERVICE '{self.service}' run by USER '{self.creator}'"
 
-    def __getattr__(self, key):
-        if key in self.__dict__:
-            return self.__dict__[key]
-        elif key in self.__dict__.get("properties", {}):
-            return self.__dict__["properties"][key]
-        elif self.__dict__.get("service_id"):
-            return getattr(self.service, key)
-        else:
-            raise AttributeError
-
     def result(self, device=None):
         result = [r for r in self.results if r.device_name == device]
         return result.pop() if result else None
@@ -593,7 +583,7 @@ class Run(AbstractBase):
                 except SystemExit:
                     pass
                 if results["success"] and self.validation_method != "none":
-                    self.validate_result(results, device)
+                    self.validate_result(results, service, device)
                 if results["success"]:
                     return results
                 elif retries:
@@ -791,23 +781,23 @@ class Run(AbstractBase):
             }
         return result
 
-    def validate_result(self, results, device):
-        if self.validation_method == "text":
-            match = self.sub(self.content_match, locals())
+    def validate_result(self, results, service, device):
+        if service.validation_method == "text":
+            match = self.sub(service.content_match, locals())
             str_result = str(results["result"])
-            if self.delete_spaces_before_matching:
+            if service.delete_spaces_before_matching:
                 match, str_result = map(self.space_deleter, (match, str_result))
             success = (
-                self.content_match_regex
+                service.content_match_regex
                 and bool(search(match, str_result))
                 or match in str_result
-                and not self.content_match_regex
+                and not service.content_match_regex
             )
         else:
-            match = self.sub(self.dict_match, locals())
+            match = self.sub(service.dict_match, locals())
             success = self.match_dictionary(results["result"], match)
-        results["success"] = not success if self.negative_logic else success
-        results.update({"match": match, "negative_logic": self.negative_logic})
+        results["success"] = not success if service.negative_logic else success
+        results.update({"match": match, "negative_logic": service.negative_logic})
 
     def match_dictionary(self, result, match, first=True):
         if self.validation_method == "dict_equal":
