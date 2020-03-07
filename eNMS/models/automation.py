@@ -339,8 +339,8 @@ class Run(AbstractBase):
         else:
             return "N/A"
 
-    def compute_devices_from_query(_self, query, property, **locals):  # noqa: N805
-        values = _self.eval(query, **locals)[0]
+    def compute_devices_from_query(self, query, property, **locals):
+        values = self.eval(query, **locals)[0]
         devices, not_found = set(), []
         if isinstance(values, str):
             values = [values]
@@ -354,7 +354,7 @@ class Run(AbstractBase):
             raise Exception(f"Device query invalid targets: {', '.join(not_found)}")
         return devices
 
-    def compute_devices(self, payload):
+    def compute_devices(self):
         devices = set(self.devices)
         for pool in self.pools:
             devices |= set(pool.devices)
@@ -363,7 +363,6 @@ class Run(AbstractBase):
                 devices |= self.compute_devices_from_query(
                     self.service.device_query,
                     self.service.device_query_property,
-                    payload=payload,
                 )
             devices |= set(self.service.devices)
             for pool in self.service.pools:
@@ -372,8 +371,9 @@ class Run(AbstractBase):
                 devices |= set(pool.devices)
         return list(devices)
 
-    def init_state(self):
+    def init_state(self, payload):
         state = {
+            "payload": payload,
             "status": "Idle",
             "success": None,
             "progress": {
@@ -404,14 +404,14 @@ class Run(AbstractBase):
                 service_states[self.path] = state
 
     def run(self, payload):
-        self.init_state()
+        self.init_state(payload)
         self.run_state["status"] = "Running"
         start = datetime.now().replace(microsecond=0)
         try:
             app.service_db[self.service.id]["runs"] += 1
             self.service.status = "Running"
             Session.commit()
-            results = {"runtime": self.runtime, **self.device_run(payload)}
+            results = {"runtime": self.runtime, **self.device_run()}
         except Exception:
             result = (
                 f"Running {self.service.type} '{self.service.name}'"
@@ -454,7 +454,7 @@ class Run(AbstractBase):
             Session.commit()
         return results
 
-    def device_iteration(self, payload, device):
+    def device_iteration(self, device):
         derived_devices = self.compute_devices_from_query(
             self.service.iteration_devices,
             self.service.iteration_devices_property,
@@ -473,7 +473,7 @@ class Run(AbstractBase):
             },
         )
         derived_run.properties = self.properties
-        success = derived_run.run(payload)["success"]
+        success = derived_run.run()["success"]
         key = "success" if success else "failure"
         self.run_state["summary"][key].append(device.name)
         return success
@@ -481,16 +481,17 @@ class Run(AbstractBase):
     def queue_worker(self):
         while True:
             args = self.queue.get()
+            print("QUEUE"*100, self.queue.qsize())
             if not args:
                 break
-            device_id, runtime, payload = args
+            device_id, runtime = args
             device = fetch("device", id=device_id)
             run = fetch("run", runtime=runtime)
-            run.get_results(payload, device)
+            run.get_results(device)
             self.queue.task_done()
 
-    def device_run(self, payload):
-        self.devices = self.compute_devices(payload)
+    def device_run(self):
+        self.devices = self.compute_devices()
         if self.run_method != "once":
             self.run_state["progress"]["device"]["total"] += len(self.devices)
         if self.iteration_devices and not self.parent_device:
@@ -501,20 +502,21 @@ class Run(AbstractBase):
                     "runtime": self.runtime,
                 }
             results = [
-                self.device_iteration(payload, device) for device in self.devices
+                self.device_iteration(device) for device in self.devices
             ]
             return {"success": all(results), "runtime": self.runtime}
         elif self.run_method != "per_device":
-            return self.get_results(payload)
+            return self.get_results()
         else:
             threads = []
+            thread_number = min(self.max_processes, len(self.devices))
             for device in self.devices:
-                self.queue.put((device.id, self.runtime, payload))
-            for i in range(10):
+                self.queue.put((device.id, self.runtime))
+            for i in range(thread_number):
                 t = Thread(target=self.queue_worker)
                 threads.append(t)
                 t.start()
-            for i in range(10):
+            for i in range(thread_number):
                 self.queue.put(None)
             for t in threads:
                 t.join()
@@ -546,7 +548,7 @@ class Run(AbstractBase):
                 )
         factory("result", **result_kw)
 
-    def run_service_job(self, payload, device):
+    def run_service_job(self, device):
         args = (device,) if device else ()
         retries, total_retries = self.number_of_retries + 1, 0
         while retries and total_retries < self.max_number_of_retries:
@@ -556,7 +558,7 @@ class Run(AbstractBase):
                 if self.number_of_retries - retries:
                     retry = self.number_of_retries - retries
                     self.log("error", f"RETRY n°{retry}", device)
-                results = self.service.job(self, payload, *args)
+                results = self.service.job(self, *args)
                 if device and (
                     getattr(self, "close_connection", False)
                     or self.runtime == self.parent_runtime
@@ -574,7 +576,7 @@ class Run(AbstractBase):
                 except SystemExit:
                     pass
                 if results["success"] and self.validation_method != "none":
-                    self.validate_result(results, payload, device)
+                    self.validate_result(results, device)
                 if results["success"]:
                     return results
                 elif retries:
@@ -585,7 +587,7 @@ class Run(AbstractBase):
                 results = {"success": False, "result": result}
         return results
 
-    def get_results(self, payload, device=None):
+    def get_results(self, device=None): 
         self.log("info", "STARTING", device)
         start = datetime.now().replace(microsecond=0)
         skip_service = False
@@ -607,7 +609,7 @@ class Run(AbstractBase):
                     device=device.name if device else None
                 )
                 if old_result and "payload" in old_result.result:
-                    payload.update(old_result["payload"])
+                    self.run_state["payload"].update(old_result["payload"])
             if self.service.iteration_values:
                 targets_results = {}
                 targets = self.eval(self.service.iteration_values, **locals())[0]
@@ -615,12 +617,11 @@ class Run(AbstractBase):
                     targets = dict(zip(map(str, targets), targets))
                 for target_name, target_value in targets.items():
                     self.payload_helper(
-                        payload,
                         self.iteration_variable_name,
                         target_value,
                         device=getattr(device, "name", None),
                     )
-                    targets_results[target_name] = self.run_service_job(payload, device)
+                    targets_results[target_name] = self.run_service_job(device)
                 results.update(
                     {
                         "result": targets_results,
@@ -628,7 +629,7 @@ class Run(AbstractBase):
                     }
                 )
             else:
-                results.update(self.run_service_job(payload, device))
+                results.update(self.run_service_job(device))
         except Exception:
             results.update(
                 {"success": False, "result": chr(10).join(format_exc().splitlines())}
@@ -759,7 +760,7 @@ class Run(AbstractBase):
             }
         return result
 
-    def validate_result(self, results, payload, device):
+    def validate_result(self, results, device):
         if self.validation_method == "text":
             match = self.sub(self.content_match, locals())
             str_result = str(results["result"])
@@ -809,7 +810,6 @@ class Run(AbstractBase):
 
     def payload_helper(
         self,
-        payload,
         name,
         value=None,
         device=None,
@@ -817,7 +817,7 @@ class Run(AbstractBase):
         operation="set",
         allow_none=False,
     ):
-        payload = payload.setdefault("variables", {})
+        payload = self.run_state["payload"].setdefault("variables", {})
         if device:
             payload = payload.setdefault("devices", {})
             payload = payload.setdefault(device, {})
@@ -833,8 +833,8 @@ class Run(AbstractBase):
                 raise Exception(f"Payload Editor: {name} not found in {payload}.")
             return payload.get(name)
 
-    def get_var(self, payload, name, device=None, **kwargs):
-        return self.payload_helper(payload, name, device=device, **kwargs)
+    def get_var(self, name, device=None, **kwargs):
+        return self.payload_helper(name, device=device, **kwargs)
 
     def get_result(self, service_name, device=None, workflow=None):
         def filter_run(query, property):
@@ -866,15 +866,15 @@ class Run(AbstractBase):
         return recursive_search(self)
 
     def global_variables(_self, **locals):  # noqa: N805
-        payload, device = locals.get("payload", {}), locals.get("device")
+        payload, device = _self.run_state["payload"], locals.get("device")
         variables = {
             "settings": app.settings,
             "devices": _self.devices,
-            "get_var": partial(_self.get_var, payload),
+            "get_var": partial(_self.get_var),
             "get_result": _self.get_result,
             "log": _self.log,
             "workflow": _self.workflow,
-            "set_var": partial(_self.payload_helper, payload),
+            "set_var": partial(_self.payload_helper),
             "parent_device": _self.parent_device or device,
             **locals,
         }

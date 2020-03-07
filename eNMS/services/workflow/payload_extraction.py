@@ -33,7 +33,7 @@ class PayloadExtractionService(Service):
 
     __mapper_args__ = {"polymorphic_identity": "payload_extraction_service"}
 
-    def job(self, run, payload, device=None):
+    def job(self, run, device=None):
         result, success = {}, True
         for i in range(1, 4):
             variable = getattr(run, f"variable{i}")
@@ -59,7 +59,7 @@ class PayloadExtractionService(Service):
                 else TextFSM(StringIO(match)).ParseText(value)
             )
             run.payload_helper(
-                payload, variable, value, device=device.name, operation=operation
+                variable, value, device=device.name, operation=operation
             )
             result[variable] = {
                 "query": query,

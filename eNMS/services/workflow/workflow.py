@@ -101,8 +101,9 @@ class Workflow(Service):
         else:
             return self.standard_bfs(run, *args)
 
-    def tracking_bfs(self, run, payload):
+    def tracking_bfs(self, run):
         number_of_runs = defaultdict(int)
+        payload = run.run_state["payload"]
         start = fetch("service", scoped_name="Start")
         end = fetch("service", scoped_name="End")
         services = [fetch("service", id=id) for id in run.start_services]
@@ -177,7 +178,8 @@ class Workflow(Service):
         run.restart_run = restart_run
         return {"payload": payload, "success": success}
 
-    def standard_bfs(self, run, payload, device=None):
+    def standard_bfs(self, run, device=None):
+        payload = run.run_state["payload"]
         number_of_runs = defaultdict(int)
         start = fetch("service", scoped_name="Start")
         end = fetch("service", scoped_name="End")
