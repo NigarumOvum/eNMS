@@ -2,6 +2,7 @@ from collections import defaultdict
 from sqlalchemy import Boolean, ForeignKey, Integer
 from sqlalchemy.orm import backref, relationship
 
+from eNMS import app
 from eNMS.database import Session
 from eNMS.database.base import AbstractBase
 from eNMS.database.dialect import Column, MutableDict, SmallString
@@ -95,11 +96,11 @@ class Workflow(Service):
     def deep_edges(self):
         return sum([w.edges for w in self.deep_services if w.type == "workflow"], [])
 
-    def job(self, run, *args):
-        if run.run_method == "per_service_with_workflow_targets":
-            return self.tracking_bfs(run, *args)
-        else:
-            return self.standard_bfs(run, *args)
+    def job(self, run, device=None):
+        start = fetch("service", scoped_name="Start")
+        queue = app.run_queue[run.parent_runtime]
+        queue.put((run.runtime, start.id, device.id if device else None))
+        return {"success": True}
 
     def tracking_bfs(self, run):
         number_of_runs = defaultdict(int)

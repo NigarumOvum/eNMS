@@ -11,6 +11,7 @@ from napalm import get_network_driver
 from netmiko import ConnectHandler
 from os import environ
 from paramiko import SFTPClient
+from queue import Empty
 from ruamel import yaml
 from re import compile, search
 from requests import post
@@ -270,12 +271,12 @@ class Run(AbstractBase):
     def __init__(self, **kwargs):
         self.runtime = kwargs.get("runtime") or app.get_time()
         super().__init__(**kwargs)
-        self.queue = app.run_queue[self.parent_runtime]
         if not kwargs.get("parent_runtime"):
             self.parent_runtime = self.runtime
             self.path = str(self.service.id)
         else:
             self.path = f"{self.parent.path}>{self.service.id}"
+        self.queue = app.run_queue[self.parent_runtime]
         if not self.start_services:
             self.start_services = [fetch("service", scoped_name="Start").id]
 
@@ -394,6 +395,7 @@ class Run(AbstractBase):
                 "failure": 0,
                 "skipped": 0,
             }
+            state["progress"]["visited"] = defaultdict(int)
         if self.runtime == self.parent_runtime:
             if self.runtime in app.run_db:
                 return
@@ -479,16 +481,16 @@ class Run(AbstractBase):
         return success
 
     def queue_worker(self):
-        while True:
-            args = self.queue.get()
-            print("QUEUE"*100, self.queue.qsize())
-            if not args:
-                break
-            device_id, runtime = args
-            device = fetch("device", id=device_id)
-            run = fetch("run", runtime=runtime)
-            run.get_results(device)
-            self.queue.task_done()
+        try:
+            while True:
+                runtime, service_id, device_id = self.queue.get_nowait()
+                service = fetch("service", id=service_id)
+                device = fetch("device", id=device_id)
+                run = fetch("run", runtime=runtime)
+                run.get_results(device, service)
+                self.queue.task_done()
+        except Empty:
+            pass
 
     def device_run(self):
         self.devices = self.compute_devices()
@@ -511,25 +513,25 @@ class Run(AbstractBase):
             threads = []
             thread_number = min(self.max_processes, len(self.devices))
             for device in self.devices:
-                self.queue.put((device.id, self.runtime))
+                self.queue.put((self.runtime, self.service_id, device.id))
             for i in range(thread_number):
                 t = Thread(target=self.queue_worker)
                 threads.append(t)
                 t.start()
-            for i in range(thread_number):
-                self.queue.put(None)
             for t in threads:
                 t.join()
             result = self.run_state["progress"]["device"]
             success = result["total"] == result["success"] + result["skipped"]
             return {"success": success}
 
-    def create_result(self, results, device=None):
+    def create_result(self, results, service=None, device=None):
+        if not service:
+            service = self.service
         self.success = results["success"]
         result_kw = {
             "run": self,
             "result": results,
-            "service": self.service_id,
+            "service": service.id,
             "parent_runtime": self.parent_runtime,
         }
         if self.workflow_id:
@@ -548,7 +550,7 @@ class Run(AbstractBase):
                 )
         factory("result", **result_kw)
 
-    def run_service_job(self, device):
+    def run_service_job(self, device, service):
         args = (device,) if device else ()
         retries, total_retries = self.number_of_retries + 1, 0
         while retries and total_retries < self.max_number_of_retries:
@@ -558,7 +560,7 @@ class Run(AbstractBase):
                 if self.number_of_retries - retries:
                     retry = self.number_of_retries - retries
                     self.log("error", f"RETRY n°{retry}", device)
-                results = self.service.job(self, *args)
+                results = service.job(self, *args)
                 if device and (
                     getattr(self, "close_connection", False)
                     or self.runtime == self.parent_runtime
@@ -569,7 +571,7 @@ class Run(AbstractBase):
                     results["success"] = True
                 try:
                     _, exec_variables = self.eval(
-                        self.service.result_postprocessing, function="exec", **locals()
+                        service.result_postprocessing, function="exec", **locals()
                     )
                     if isinstance(exec_variables.get("retries"), int):
                         retries = exec_variables["retries"]
@@ -587,7 +589,9 @@ class Run(AbstractBase):
                 results = {"success": False, "result": result}
         return results
 
-    def get_results(self, device=None): 
+    def get_results(self, device=None, service=None):
+        if not service:
+            service = self.service
         self.log("info", "STARTING", device)
         start = datetime.now().replace(microsecond=0)
         skip_service = False
@@ -604,15 +608,15 @@ class Run(AbstractBase):
             }
         results = {"logs": []}
         try:
-            if self.restart_run and self.service.type == "workflow":
+            if self.restart_run and service.type == "workflow":
                 old_result = self.restart_run.result(
                     device=device.name if device else None
                 )
                 if old_result and "payload" in old_result.result:
                     self.run_state["payload"].update(old_result["payload"])
-            if self.service.iteration_values:
+            if service.iteration_values:
                 targets_results = {}
-                targets = self.eval(self.service.iteration_values, **locals())[0]
+                targets = self.eval(service.iteration_values, **locals())[0]
                 if not isinstance(targets, dict):
                     targets = dict(zip(map(str, targets), targets))
                 for target_name, target_value in targets.items():
@@ -621,7 +625,7 @@ class Run(AbstractBase):
                         target_value,
                         device=getattr(device, "name", None),
                     )
-                    targets_results[target_name] = self.run_service_job(device)
+                    targets_results[target_name] = self.run_service_job(device, service)
                 results.update(
                     {
                         "result": targets_results,
@@ -629,7 +633,7 @@ class Run(AbstractBase):
                     }
                 )
             else:
-                results.update(self.run_service_job(device))
+                results.update(self.run_service_job(device, service))
         except Exception:
             results.update(
                 {"success": False, "result": chr(10).join(format_exc().splitlines())}
@@ -640,13 +644,24 @@ class Run(AbstractBase):
             status = "success" if results["success"] else "failure"
             self.run_state["progress"]["device"][status] += 1
             self.run_state["summary"][status].append(device.name)
-            self.create_result({"runtime": app.get_time(), **results}, device)
+            self.create_result({"runtime": app.get_time(), **results}, service, device)
+        """ if self.workflow:
+            next_jobs = self.get_next_jobs(results, device)
+            print(f"NEXT JOBS FOR {device.name}", next_jobs) """
         self.log("info", "FINISHED", device)
         if self.waiting_time:
             self.log("info", f"SLEEP {self.waiting_time} seconds...", device)
             sleep(self.waiting_time)
         Session.commit()
         return results
+
+    def get_next_jobs(self, results, device):
+        edge_type = "success" if results["success"] else "failure"
+        print("READ"*500)
+        print(self, device)
+        for service, _ in self.service.adjacent_services(self.workflow, "source", edge_type):
+            print(service)
+            print(self.parent.run_state)
 
     def log(self, severity, content, device=None):
         log_level = int(self.log_level)
