@@ -26,15 +26,15 @@ class NapalmTracerouteService(ConnectionService):
 
     def job(self, run, device):
         napalm_connection = run.napalm_connection(self, device)
-        destination = run.sub(run.destination_ip, locals())
-        source = run.sub(run.source_ip, locals())
+        destination = run.sub(self.destination_ip, locals())
+        source = run.sub(self.source_ip, locals())
         run.log("info", f"NAPALM TRACEROUTE : {source} -> {destination}", device)
         traceroute = napalm_connection.traceroute(
             destination=destination,
-            source=run.source,
-            vrf=run.vrf,
-            ttl=run.ttl or 255,
-            timeout=run.timeout or 2,
+            source=self.source,
+            vrf=self.vrf,
+            ttl=self.ttl or 255,
+            timeout=self.timeout or 2,
         )
         return {"success": "success" in traceroute, "result": traceroute}
 

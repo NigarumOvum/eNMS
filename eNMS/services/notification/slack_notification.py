@@ -22,11 +22,11 @@ class SlackNotificationService(Service):
     __mapper_args__ = {"polymorphic_identity": "slack_notification_service"}
 
     def job(self, run, device=None):
-        slack_client = SlackClient(run.token or environ.get("SLACK_TOKEN"))
-        channel = run.sub(run.channel, locals()) or app.settings["slack"]["channel"]
+        slack_client = SlackClient(self.token or environ.get("SLACK_TOKEN"))
+        channel = run.sub(self.channel, locals()) or app.settings["slack"]["channel"]
         run.log("info", f"Sending SLACK notification on {channel}", device)
         result = slack_client.api_call(
-            "chat.postMessage", channel=channel, text=run.sub(run.body, locals())
+            "chat.postMessage", channel=channel, text=run.sub(self.body, locals())
         )
         return {"success": True, "result": str(result)}
 

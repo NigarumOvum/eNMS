@@ -21,7 +21,7 @@ class PythonSnippetService(Service):
     def job(self, run, device=None):
 
         try:
-            code_object = compile(run.source_code, "user_python_code", "exec")
+            code_object = compile(self.source_code, "user_python_code", "exec")
         except Exception as exc:
             run.log("info", f"Compile error: {str(exc)}")
             return {"success": False, "result": {"step": "compile", "error": str(exc)}}

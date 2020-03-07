@@ -28,17 +28,17 @@ class NapalmPingService(ConnectionService):
 
     def job(self, run, device):
         napalm_connection = run.napalm_connection(self, device)
-        destination = run.sub(run.destination_ip, locals())
-        source = run.sub(run.source_ip, locals())
+        destination = run.sub(self.destination_ip, locals())
+        source = run.sub(self.source_ip, locals())
         run.log("info", f"NAPALM PING : {source} -> {destination}", device)
         ping = napalm_connection.ping(
             destination=destination,
             source=source,
-            vrf=run.vrf,
-            ttl=run.ttl or 255,
-            timeout=run.timeout or 2,
-            size=run.packet_size or 100,
-            count=run.count or 5,
+            vrf=self.vrf,
+            ttl=self.ttl or 255,
+            timeout=self.timeout or 2,
+            size=self.packet_size or 100,
+            count=self.count or 5,
         )
         return {"success": "success" in ping, "result": ping}
 

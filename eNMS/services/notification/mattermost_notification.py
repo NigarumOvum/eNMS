@@ -22,13 +22,13 @@ class MattermostNotificationService(Service):
 
     def job(self, run, device=None):
         channel = (
-            run.sub(run.channel, locals()) or app.settings["mattermost"]["channel"]
+            run.sub(self.channel, locals()) or app.settings["mattermost"]["channel"]
         )
         run.log("info", f"Sending MATTERMOST notification on {channel}", device)
         result = post(
             app.settings["mattermost"]["url"],
             verify=app.settings["mattermost"]["verify_certificate"],
-            data=dumps({"channel": channel, "text": run.sub(run.body, locals())}),
+            data=dumps({"channel": channel, "text": run.sub(self.body, locals())}),
         )
         return {"success": True, "result": str(result)}
 

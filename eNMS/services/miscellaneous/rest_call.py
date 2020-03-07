@@ -36,18 +36,18 @@ class RestCallService(Service):
     __mapper_args__ = {"polymorphic_identity": "rest_call_service"}
 
     def job(self, run, device=None):
-        rest_url = run.sub(run.rest_url, locals())
+        rest_url = run.sub(self.rest_url, locals())
         run.log("info", f"Sending REST Call to {rest_url}", device)
         kwargs = {
             p: run.sub(getattr(self, p), locals())
             for p in ("headers", "params", "timeout")
         }
-        kwargs["verify"] = run.verify_ssl_certificate
+        kwargs["verify"] = self.verify_ssl_certificate
         if self.username:
             kwargs["auth"] = HTTPBasicAuth(self.username, self.password)
-        if run.call_type in ("POST", "PUT", "PATCH"):
-            kwargs["data"] = dumps(run.sub(run.payload, locals()))
-        call = getattr(app.request_session, run.call_type.lower())
+        if self.call_type in ("POST", "PUT", "PATCH"):
+            kwargs["data"] = dumps(run.sub(self.payload, locals()))
+        call = getattr(app.request_session, self.call_type.lower())
         response = call(rest_url, **kwargs)
         if response.status_code not in range(200, 300):
             result = {

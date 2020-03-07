@@ -33,18 +33,18 @@ class NetmikoFileTransferService(ConnectionService):
 
     def job(self, run, device):
         netmiko_connection = run.netmiko_connection(self, device)
-        source = run.sub(run.source_file, locals())
-        destination = run.sub(run.destination_file, locals())
+        source = run.sub(self.source_file, locals())
+        destination = run.sub(self.destination_file, locals())
         run.log("info", f"Transferring file {source}", device)
         transfer_dict = file_transfer(
             netmiko_connection,
             source_file=source,
             dest_file=destination,
-            file_system=run.file_system,
-            direction=run.direction,
-            overwrite_file=run.overwrite_file,
-            disable_md5=run.disable_md5,
-            inline_transfer=run.inline_transfer,
+            file_system=self.file_system,
+            direction=self.direction,
+            overwrite_file=self.overwrite_file,
+            disable_md5=self.disable_md5,
+            inline_transfer=self.inline_transfer,
         )
         return {"success": True, "result": transfer_dict}
 

@@ -38,10 +38,10 @@ class UnixShellScriptService(Service):
 
     def job(self, run, device):
         netmiko_connection = run.netmiko_connection(self, device)
-        source_code = run.sub(run.source_code, locals())
+        source_code = run.sub(self.source_code, locals())
         script_file_name = f"{self.name}.sh"
         run.log("info", f"Sending shell script '{script_file_name}'", device)
-        expect_string = run.sub(run.expect_string, locals())
+        expect_string = run.sub(self.expect_string, locals())
         command_list = (
             f"echo '{source_code}' > '{script_file_name}'",
             f"bash ./{script_file_name}",
@@ -50,21 +50,21 @@ class UnixShellScriptService(Service):
         for command in command_list:
             output = netmiko_connection.send_command(
                 command,
-                delay_factor=run.delay_factor,
-                expect_string=run.expect_string or None,
-                auto_find_prompt=run.auto_find_prompt,
-                strip_prompt=run.strip_prompt,
-                strip_command=run.strip_command,
+                delay_factor=self.delay_factor,
+                expect_string=self.expect_string or None,
+                auto_find_prompt=self.auto_find_prompt,
+                strip_prompt=self.strip_prompt,
+                strip_command=self.strip_command,
             )
             if "bash" in command:
                 result = output
             return_code = netmiko_connection.send_command(
                 f"echo $?",
-                delay_factor=run.delay_factor,
-                expect_string=run.expect_string or None,
-                auto_find_prompt=run.auto_find_prompt,
-                strip_prompt=run.strip_prompt,
-                strip_command=run.strip_command,
+                delay_factor=self.delay_factor,
+                expect_string=self.expect_string or None,
+                auto_find_prompt=self.auto_find_prompt,
+                strip_prompt=self.strip_prompt,
+                strip_command=self.strip_command,
             )
             if return_code != "0":
                 break

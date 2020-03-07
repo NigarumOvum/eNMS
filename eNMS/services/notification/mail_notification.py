@@ -22,10 +22,10 @@ class MailNotificationService(Service):
 
     def job(self, run, device=None):
         app.send_email(
-            run.sub(run.title, locals()),
-            run.sub(run.body, locals()),
-            sender=run.sender,
-            recipients=run.recipients,
+            run.sub(self.title, locals()),
+            run.sub(self.body, locals()),
+            sender=self.sender,
+            recipients=self.recipients,
         )
         return {"success": True, "result": {}}
 

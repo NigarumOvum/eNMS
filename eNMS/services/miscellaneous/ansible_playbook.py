@@ -41,18 +41,18 @@ class AnsiblePlaybookService(Service):
     __mapper_args__ = {"polymorphic_identity": "ansible_playbook_service"}
 
     def job(self, run, device=None):
-        arguments = run.sub(run.arguments, locals()).split()
+        arguments = run.sub(self.arguments, locals()).split()
         command, extra_args = ["ansible-playbook"], {}
-        if run.pass_device_properties:
+        if self.pass_device_properties:
             extra_args = device.get_properties()
             extra_args["password"] = device.password
-        if run.options:
-            extra_args.update(run.sub(run.options, locals()))
+        if self.options:
+            extra_args.update(run.sub(self.options, locals()))
         if extra_args:
             command.extend(["-e", dumps(extra_args)])
         if device:
             command.extend(["-i", device.ip_address + ","])
-        command.append(run.sub(run.playbook_path, locals()))
+        command.append(run.sub(self.playbook_path, locals()))
         password = extra_args.get("password")
         full_command = " ".join(command + arguments)
         if password:
