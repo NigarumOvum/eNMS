@@ -270,23 +270,18 @@ class Run(AbstractBase):
     def __init__(self, **kwargs):
         self.runtime = kwargs.get("runtime") or app.get_time()
         super().__init__(**kwargs)
+        self.queue = app.run_queue[self.parent_runtime]
         if not kwargs.get("parent_runtime"):
             self.parent_runtime = self.runtime
             self.path = str(self.service.id)
-            self.queue = app.run_queue[self.runtime]
         else:
             self.path = f"{self.parent.path}>{self.service.id}"
-            self.queue = self.original.queue
         if not self.start_services:
             self.start_services = [fetch("service", scoped_name="Start").id]
 
     @property
     def name(self):
         return repr(self)
-
-    @property
-    def original(self):
-        return self if not self.parent else self.parent.original
 
     @property
     def dont_track_changes(self):
@@ -516,12 +511,17 @@ class Run(AbstractBase):
         elif self.run_method != "per_device":
             return self.get_results(payload)
         else:
-            results = []
+            results, threads = [], []
             for device in self.devices:
                 self.queue.put((device.id, self.runtime, payload, results))
             for i in range(10):
                 t = Thread(target=self.queue_worker)
+                threads.append(t)
                 t.start()
+            for i in range(10):
+                self.queue.put(None)
+            for t in threads:
+                t.join()
             return {
                 "success": all(result["success"] for result in results),
                 "runtime": self.runtime,
