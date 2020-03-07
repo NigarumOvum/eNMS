@@ -26,21 +26,21 @@ class ConfigureBgpService(ConnectionService):
     def job(self, run, device):
         napalm_connection = run.napalm_connection(self, device)
         config = f"""
-            ip vrf {run.vrf_name}
-            rd {run.local_as}:235
-            route-target import {run.local_as}:410
-            route-target export {run.local_as}:400
+            ip vrf {self.vrf_name}
+            rd {self.local_as}:235
+            route-target import {self.local_as}:410
+            route-target export {self.local_as}:400
             maximum route 10000 80
-            interface {run.loopback}
-            ip vrf forwarding {run.vrf_name}
-            ip address {run.loopback_ip} 255.255.255.255
-            router bgp {run.local_as}
-            address-family ipv4 vrf {run.vrf_name}
-            network {run.loopback_ip} mask 255.255.255.255
-            neighbor {run.neighbor_ip} remote-as {run.remote_as}
-            neighbor {run.neighbor_ip} activate
-            neighbor {run.neighbor_ip} send-community both
-            neighbor {run.neighbor_ip} as-override
+            interface {self.loopback}
+            ip vrf forwarding {self.vrf_name}
+            ip address {self.loopback_ip} 255.255.255.255
+            router bgp {self.local_as}
+            address-family ipv4 vrf {self.vrf_name}
+            network {self.loopback_ip} mask 255.255.255.255
+            neighbor {self.neighbor_ip} remote-as {self.remote_as}
+            neighbor {self.neighbor_ip} activate
+            neighbor {self.neighbor_ip} send-community both
+            neighbor {self.neighbor_ip} as-override
             exit-address-family
         """
         config = "\n".join(config.splitlines())

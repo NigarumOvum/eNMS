@@ -32,17 +32,17 @@ class NetmikoConfigurationService(ConnectionService):
 
     def job(self, run, device):
         netmiko_connection = run.netmiko_connection(self, device)
-        config = run.sub(run.content, locals())
+        config = run.sub(self.content, locals())
         run.log("info", "Pushing Configuration with Netmiko", device)
         netmiko_connection.send_config_set(
             config.splitlines(),
-            delay_factor=run.delay_factor,
-            exit_config_mode=run.exit_config_mode,
-            strip_prompt=run.strip_prompt,
-            strip_command=run.strip_command,
-            config_mode_command=run.config_mode_command,
+            delay_factor=self.delay_factor,
+            exit_config_mode=self.exit_config_mode,
+            strip_prompt=self.strip_prompt,
+            strip_command=self.strip_command,
+            config_mode_command=self.config_mode_command,
         )
-        if run.commit_configuration:
+        if self.commit_configuration:
             netmiko_connection.commit()
         return {"success": True, "result": f"configuration OK {config}"}
 

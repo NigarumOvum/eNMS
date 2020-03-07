@@ -22,8 +22,8 @@ class NapalmGettersService(ConnectionService):
 
     def job(self, run, device):
         napalm_connection, result = run.napalm_connection(self, device), {}
-        run.log("info", f"Fetching NAPALM getters ({', '.join(run.getters)})", device)
-        for getter in run.getters:
+        run.log("info", f"Fetching NAPALM getters ({', '.join(self.getters)})", device)
+        for getter in self.getters:
             try:
                 result[getter] = getattr(napalm_connection, getter)()
             except Exception as exc:

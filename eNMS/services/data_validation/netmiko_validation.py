@@ -32,18 +32,18 @@ class NetmikoValidationService(ConnectionService):
 
     def job(self, run, device):
         netmiko_connection = run.netmiko_connection(self, device)
-        command = run.sub(run.command, locals())
+        command = run.sub(self.command, locals())
         run.log("info", f"Sending '{command}' with Netmiko", device)
-        expect_string = run.sub(run.expect_string, locals())
+        expect_string = run.sub(self.expect_string, locals())
         netmiko_connection.session_log.truncate(0)
         try:
             result = netmiko_connection.send_command(
                 command,
-                delay_factor=run.delay_factor,
+                delay_factor=self.delay_factor,
                 expect_string=expect_string or None,
-                auto_find_prompt=run.auto_find_prompt,
-                strip_prompt=run.strip_prompt,
-                strip_command=run.strip_command,
+                auto_find_prompt=self.auto_find_prompt,
+                strip_prompt=self.strip_prompt,
+                strip_command=self.strip_command,
                 use_genie=self.use_genie,
             )
         except Exception:

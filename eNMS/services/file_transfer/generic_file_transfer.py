@@ -37,20 +37,20 @@ class GenericFileTransferService(Service):
 
     def job(self, run, device):
         ssh_client = SSHClient()
-        if run.missing_host_key_policy:
+        if self.missing_host_key_policy:
             ssh_client.set_missing_host_key_policy(AutoAddPolicy())
-        if run.load_known_host_keys:
+        if self.load_known_host_keys:
             ssh_client.load_system_host_keys()
-        source = run.sub(run.source_file, locals())
-        destination = run.sub(run.destination_file, locals())
+        source = run.sub(self.source_file, locals())
+        destination = run.sub(self.destination_file, locals())
         success, result = True, f"File {source} transferred successfully"
         ssh_client.connect(
             device.ip_address,
             username=device.username,
             password=device.password,
-            look_for_keys=run.look_for_keys,
+            look_for_keys=self.look_for_keys,
         )
-        if run.source_file_includes_globbing:
+        if self.source_file_includes_globbing:
             glob_source_file_list = glob(source, recursive=False)
             if not glob_source_file_list:
                 success = False

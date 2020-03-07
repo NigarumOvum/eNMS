@@ -33,8 +33,8 @@ class NetmikoPromptsService(ConnectionService):
 
     def job(self, run, device):
         netmiko_connection = run.netmiko_connection(self, device)
-        send_strings = (run.command, run.response1, run.response2, run.response3)
-        expect_strings = (run.confirmation1, run.confirmation2, run.confirmation3, None)
+        send_strings = (self.command, self.response1, self.response2, self.response3)
+        expect_strings = (self.confirmation1, self.confirmation2, self.confirmation3, None)
         commands = []
         results = {"commands": commands}
         for send_string, expect_string in zip(send_strings, expect_strings):
@@ -46,7 +46,7 @@ class NetmikoPromptsService(ConnectionService):
             confirmation = run.sub(expect_string, locals())
             try:
                 result = netmiko_connection.send_command_timing(
-                    command, delay_factor=run.delay_factor
+                    command, delay_factor=self.delay_factor
                 )
             except Exception:
                 return {
