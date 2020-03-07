@@ -58,9 +58,7 @@ class PayloadExtractionService(Service):
                 if match_type == "regex"
                 else TextFSM(StringIO(match)).ParseText(value)
             )
-            run.payload_helper(
-                variable, value, device=device.name, operation=operation
-            )
+            run.payload_helper(variable, value, device=device.name, operation=operation)
             result[variable] = {
                 "query": query,
                 "match_type": match_type,

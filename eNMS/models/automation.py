@@ -365,8 +365,7 @@ class Run(AbstractBase):
         if not devices:
             if self.service.device_query:
                 devices |= self.compute_devices_from_query(
-                    self.service.device_query,
-                    self.service.device_query_property,
+                    self.service.device_query, self.service.device_query_property,
                 )
             devices |= set(self.service.devices)
             for pool in self.service.pools:
@@ -506,9 +505,7 @@ class Run(AbstractBase):
                     "result": "Device iteration not allowed outside of a workflow",
                     "runtime": self.runtime,
                 }
-            results = [
-                self.device_iteration(device) for device in self.devices
-            ]
+            results = [self.device_iteration(device) for device in self.devices]
             return {"success": all(results), "runtime": self.runtime}
         elif self.run_method != "per_device":
             return self.get_results()
@@ -661,8 +658,12 @@ class Run(AbstractBase):
 
     def get_next_jobs(self, results, device, service):
         edge_type = "success" if results["success"] else "failure"
-        for service, _ in service.adjacent_services(self.service, "destination", edge_type):
-            self.queue.put((self.parent_runtime, service.id, device.id if device else None))
+        for service, _ in service.adjacent_services(
+            self.service, "destination", edge_type
+        ):
+            self.queue.put(
+                (self.parent_runtime, service.id, device.id if device else None)
+            )
 
     def log(self, severity, content, device=None):
         log_level = int(self.log_level)
@@ -954,7 +955,7 @@ class Run(AbstractBase):
             return self.update_netmiko_connection(connection)
         self.log("info", "Opening new Netmiko connection", device)
         username, password = self.get_credentials(service, device)
-        driver = device.netmiko_driver if self.use_device_driver else self.driver
+        driver = device.netmiko_driver if service.use_device_driver else self.driver
         netmiko_connection = ConnectHandler(
             device_type=driver,
             ip=device.ip_address,
@@ -962,21 +963,21 @@ class Run(AbstractBase):
             username=username,
             password=password,
             secret=device.enable_password,
-            fast_cli=self.fast_cli,
-            timeout=self.timeout,
-            global_delay_factor=self.global_delay_factor,
+            fast_cli=service.fast_cli,
+            timeout=service.timeout,
+            global_delay_factor=service.global_delay_factor,
             session_log=BytesIO(),
         )
-        if self.enable_mode:
+        if service.enable_mode:
             netmiko_connection.enable()
-        if self.config_mode:
+        if service.config_mode:
             netmiko_connection.config_mode()
         app.connections_cache["netmiko"][self.parent_runtime][
             device.name
         ] = netmiko_connection
         return netmiko_connection
 
-    def napalm_connection(self, device):
+    def napalm_connection(self, service, device):
         connection = self.get_or_close_connection("napalm", device.name)
         if connection:
             self.log("info", "Using cached NAPALM connection", device)
@@ -989,19 +990,17 @@ class Run(AbstractBase):
         if "secret" not in optional_args:
             optional_args["secret"] = device.enable_password
         driver = get_network_driver(
-            device.napalm_driver if self.use_device_driver else self.driver
+            device.napalm_driver if service.use_device_driver else service.driver
         )
         napalm_connection = driver(
             hostname=device.ip_address,
             username=username,
             password=password,
-            timeout=self.timeout,
+            timeout=service.timeout,
             optional_args=optional_args,
         )
         napalm_connection.open()
-        app.connections_cache["napalm"][self.parent_runtime][
-            device.name
-        ] = napalm_connection
+        app.connections_cache["napalm"][self.runtime][device.name] = napalm_connection
         return napalm_connection
 
     def get_or_close_connection(self, library, device):
