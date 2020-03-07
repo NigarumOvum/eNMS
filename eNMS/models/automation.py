@@ -373,7 +373,7 @@ class Run(AbstractBase):
                 )
             devices |= set(self.service.devices)
             for pool in self.service.pools:
-                if self.update_pools:
+                if self.service.update_pools:
                     pool.compute_pool()
                 devices |= set(pool.devices)
         return list(devices)
@@ -436,7 +436,7 @@ class Run(AbstractBase):
             self.run_state["status"] = self.status
             if self.run_state["success"] is not False:
                 self.success = self.run_state["success"] = results["success"]
-            if self.send_notification:
+            if self.service.send_notification:
                 results = self.notify(results)
             app.service_db[self.service.id]["runs"] -= 1
             if not app.service_db[self.id]["runs"]:
@@ -456,7 +456,7 @@ class Run(AbstractBase):
             if (
                 self.runtime == self.parent_runtime
                 or len(self.devices) > 1
-                or self.run_method == "once"
+                or self.service.run_method == "once"
             ):
                 self.create_result(results)
             Session.commit()
@@ -500,9 +500,9 @@ class Run(AbstractBase):
 
     def device_run(self):
         self.devices = self.compute_devices()
-        if self.run_method != "once":
+        if self.service.run_method != "once":
             self.run_state["progress"]["device"]["total"] += len(self.devices)
-        if self.iteration_devices and not self.parent_device:
+        if self.service.iteration_devices and not self.parent_device:
             if not self.workflow:
                 return {
                     "success": False,
@@ -511,11 +511,11 @@ class Run(AbstractBase):
                 }
             results = [self.device_iteration(device) for device in self.devices]
             return {"success": all(results), "runtime": self.runtime}
-        elif self.run_method != "per_device":
+        elif self.service.run_method != "per_device":
             return self.get_results()
         else:
             threads = []
-            thread_number = min(self.max_processes, len(self.devices))
+            thread_number = min(self.service.max_processes, len(self.devices))
             for device in self.devices:
                 self.queue.put((self.runtime, self.service_id, device.id))
             for i in range(thread_number):
@@ -556,13 +556,13 @@ class Run(AbstractBase):
 
     def run_service_job(self, device, service):
         args = (device,) if device else ()
-        retries, total_retries = self.number_of_retries + 1, 0
-        while retries and total_retries < self.max_number_of_retries:
+        retries, total_retries = service.number_of_retries + 1, 0
+        while retries and total_retries < service.max_number_of_retries:
             retries -= 1
             total_retries += 1
             try:
-                if self.number_of_retries - retries:
-                    retry = self.number_of_retries - retries
+                if service.number_of_retries - retries:
+                    retry = service.number_of_retries - retries
                     self.log("error", f"RETRY n°{retry}", device)
 
                 results = service.job(self, *args)
@@ -582,12 +582,12 @@ class Run(AbstractBase):
                         retries = exec_variables["retries"]
                 except SystemExit:
                     pass
-                if results["success"] and self.validation_method != "none":
+                if results["success"] and service.validation_method != "none":
                     self.validate_result(results, service, device)
                 if results["success"]:
                     return results
                 elif retries:
-                    sleep(self.time_between_retries)
+                    sleep(service.time_between_retries)
             except Exception as exc:
                 self.log("error", str(exc), device)
                 result = chr(10).join(format_exc().splitlines())
@@ -600,16 +600,16 @@ class Run(AbstractBase):
         self.log("info", "STARTING", device)
         start = datetime.now().replace(microsecond=0)
         skip_service = False
-        if self.skip_query:
-            skip_service = self.eval(self.skip_query, **locals())[0]
-        if skip_service or self.skip:
+        if service.skip_query:
+            skip_service = self.eval(service.skip_query, **locals())[0]
+        if skip_service or service.skip:
             if device:
                 self.run_state["progress"]["device"]["skipped"] += 1
                 key = "success" if self.skip_value == "True" else "failure"
                 self.run_state["summary"][key].append(device.name)
             return {
                 "result": "skipped",
-                "success": self.skip_value == "True",
+                "success": service.skip_value == "True",
             }
         results = {"logs": []}
         try:
@@ -654,9 +654,9 @@ class Run(AbstractBase):
             next_jobs = self.get_next_jobs(results, device, service)
             print(f"NEXT JOBS FOR {device.name}", next_jobs)
         self.log("info", "FINISHED", device)
-        if self.waiting_time:
-            self.log("info", f"SLEEP {self.waiting_time} seconds...", device)
-            sleep(self.waiting_time)
+        if service.waiting_time:
+            self.log("info", f"SLEEP {service.waiting_time} seconds...", device)
+            sleep(service.waiting_time)
         Session.commit()
         return results
 
@@ -670,7 +670,7 @@ class Run(AbstractBase):
             )
 
     def log(self, severity, content, device=None):
-        log_level = int(self.log_level)
+        log_level = int(self.service.log_level)
         if not log_level or severity not in app.log_levels[log_level - 1 :]:
             return
         log = f"{app.get_time()} - {severity} - SERVICE {self.service.scoped_name}"
