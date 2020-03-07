@@ -228,7 +228,6 @@ class Run(AbstractBase):
     __tablename__ = type = "run"
     private = True
     id = Column(Integer, primary_key=True)
-    restart_path = Column(SmallString)
     restart_run_id = Column(Integer, ForeignKey("run.id"))
     restart_run = relationship("Run", uselist=False, foreign_keys=restart_run_id)
     start_services = Column(MutableList)
@@ -273,29 +272,15 @@ class Run(AbstractBase):
         super().__init__(**kwargs)
         if not kwargs.get("parent_runtime"):
             self.parent_runtime = self.runtime
-            self.restart_path = kwargs.get("restart_path")
             self.path = str(self.service.id)
         else:
             self.path = f"{self.parent.path}>{self.service.id}"
-        restart_path = self.original.restart_path
-        if restart_path:
-            path_ids = restart_path.split(">")
-            if str(self.service.id) in path_ids:
-                workflow_index = path_ids.index(str(self.service.id))
-                if workflow_index == len(path_ids) - 2:
-                    self.start_services = path_ids[-1].split("-")
-                elif workflow_index < len(path_ids) - 2:
-                    self.start_services = [path_ids[workflow_index + 1]]
         if not self.start_services:
             self.start_services = [fetch("service", scoped_name="Start").id]
 
     @property
     def name(self):
         return repr(self)
-
-    @property
-    def original(self):
-        return self if not self.parent else self.parent.original
 
     @property
     def dont_track_changes(self):
