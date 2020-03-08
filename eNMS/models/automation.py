@@ -330,11 +330,7 @@ class Run(AbstractBase):
 
     @property
     def queue(self):
-        return app.run_queue[self.parent_runtime]
-
-    @property
-    def dont_track_changes(self):
-        return self.runtime != self.parent_runtime
+        return app.run_queue[self.runtime]
 
     def __repr__(self):
         return f"{self.runtime}: SERVICE '{self.service}' run by USER '{self.creator}'"
@@ -357,7 +353,7 @@ class Run(AbstractBase):
 
     @property
     def edge_state(self):
-        return app.run_db[self.parent_runtime]["edges"]
+        return app.run_db[self.runtime]["edges"]
 
     @property
     def stop(self):
@@ -465,6 +461,7 @@ class Run(AbstractBase):
             self.log("error", result)
             results = {"success": False, "runtime": self.runtime, "result": result}
         finally:
+            self.close_remaining_connections()
             Session.commit()
             results["summary"] = self.run_state.get("summary", None)
             self.status = "Aborted" if self.stop else "Completed"
@@ -477,17 +474,11 @@ class Run(AbstractBase):
             results["duration"] = self.duration = str(
                 datetime.now().replace(microsecond=0) - start
             )
-            if self.runtime == self.parent_runtime:
-                self.state = results["state"] = app.run_db.pop(self.runtime)
-                self.close_remaining_connections()
+            self.state = results["state"] = app.run_db.pop(self.runtime)
+                
             if self.task and not self.task.frequency:
                 self.task.is_active = False
-            if (
-                self.runtime == self.parent_runtime
-                or len(self.devices) > 1
-                or self.service.run_method == "once"
-            ):
-                self.create_result(results)
+            self.create_result(results)
             Session.commit()
         return results
 
@@ -506,7 +497,7 @@ class Run(AbstractBase):
                 "parent_device": device.id,
                 "restart_run": self.restart_run,
                 "parent": self,
-                "parent_runtime": self.parent_runtime,
+                "runtime": self.runtime,
             },
         )
         success = derived_run.run()["success"]
@@ -564,7 +555,7 @@ class Run(AbstractBase):
             "run": self,
             "result": results,
             "service": service.id,
-            "parent_runtime": self.parent_runtime,
+            "runtime": self.runtime,
         }
         if self.workflow_id:
             result_kw["workflow"] = self.workflow_id
@@ -594,10 +585,7 @@ class Run(AbstractBase):
                     self.log("error", f"RETRY n°{retry}", device)
 
                 results = service.job(self, *args)
-                if device and (
-                    getattr(self, "close_connection", False)
-                    or self.runtime == self.parent_runtime
-                ):
+                if device and getattr(self, "close_connection", False):
                     self.close_device_connection(device.name)
                 service.convert_result(results)
                 if "success" not in results:
