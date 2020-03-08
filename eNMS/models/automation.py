@@ -539,7 +539,7 @@ class Run(AbstractBase):
                 self.queue.put(
                     {
                         "runtime": self.runtime,
-                        "service": str(self.service_id),
+                        "path": str(self.service_id),
                         "device": device.id,
                     }
                 )
@@ -673,7 +673,6 @@ class Run(AbstractBase):
             self.create_result({"runtime": app.get_time(), **results}, service, device)
         if self.service.type == "workflow" and service in self.service.services:
             edge_type = "success" if results["success"] else "failure"
-            state["progress"]["service"][edge_type] += 1
             for neighbor, edge in service.neighbors(
                 self.service, "destination", edge_type
             ):
@@ -914,7 +913,7 @@ class Run(AbstractBase):
 
     def update_netmiko_connection(self, service, connection):
         for property in ("fast_cli", "timeout", "global_delay_factor"):
-            service_value = getattr(service.service, property)
+            service_value = getattr(service, property)
             if service_value:
                 setattr(connection, property, service_value)
         try:
