@@ -277,13 +277,12 @@ class AutomationController(BaseController):
         ]
 
     def get_workflow_results(self, workflow, runtime):
-        state = fetch("run", parent_runtime=runtime).result().result["state"]
-        print(state)
+        state = fetch("run", runtime=runtime).result().result["state"]
 
         def rec(service):
             results = fetch(
                 "result",
-                parent_runtime=runtime,
+                runtime=runtime,
                 allow_none=True,
                 all_matches=True,
                 service_id=service.id,
@@ -397,11 +396,11 @@ class AutomationController(BaseController):
             runtime = "latest"
         if runs and runtime != "normal":
             if runtime == "latest":
-                runtime = runs[-1].parent_runtime
+                runtime = runs[-1].runtime
             state = self.run_db.get(runtime) or fetch("run", runtime=runtime).state
         return {
             "service": service.to_dict(include=["services", "edges"]),
-            "runtimes": sorted(set((r.parent_runtime, r.creator) for r in runs)),
+            "runtimes": sorted(set((r.runtime, r.creator) for r in runs)),
             "state": state,
             "runtime": runtime,
         }

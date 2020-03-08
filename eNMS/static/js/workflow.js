@@ -802,6 +802,7 @@ export function getServiceState(id, first) {
 function displayWorkflowState(result) {
   resetDisplay();
   updateRuntimes(result.runtimes);
+  console.log(result.state)
   if (!nodes || !edges || !result.state || !result.state.progress) return;
   if (result.state.services) {
     $.each(result.state.services, (path, state) => {
@@ -812,11 +813,9 @@ function displayWorkflowState(result) {
         id,
         progress.total && progress.skipped == progress.total
           ? "#D3D3D3"
-          : state.success === true
+          : progress.success === progress.total
           ? "#32cd32"
-          : state.success === false
-          ? "#FF6666"
-          : "#00CCFF"
+          : "#FF6666"
       );
       if (progress.total) {
         let label = `<b>${nodes.get(id).name}</b>\n`;

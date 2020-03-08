@@ -293,8 +293,6 @@ class Run(AbstractBase):
         "Run", remote_side=[id], foreign_keys="Run.parent_id", back_populates="children"
     )
     children = relationship("Run", foreign_keys="Run.parent_id")
-    parent_runtime = Column(SmallString)
-    path = Column(SmallString)
     parent_device_id = Column(Integer, ForeignKey("device.id"))
     parent_device = relationship("Device", foreign_keys="Run.parent_device_id")
     devices = relationship("Device", secondary=run_device_table, back_populates="runs")
@@ -320,7 +318,6 @@ class Run(AbstractBase):
     def __init__(self, **kwargs):
         self.runtime = app.get_time()
         super().__init__(**kwargs)
-        self.path = str(self.service.id)
         if not self.start_services:
             self.start_services = [fetch("service", scoped_name="Start").id]
 
@@ -403,9 +400,14 @@ class Run(AbstractBase):
                 devices |= set(pool.devices)
         return list(devices)
 
-    def init_state(self, payload, path=None):
-        if not path:
-            path = self.path
+    def get_state(self, payload=None, service=None, path=None):
+        if not service:
+            service = self.service
+        if self.runtime in app.run_db:
+            if not path:
+                return app.run_db[self.runtime]
+            elif path in app.run_db[self.runtime]["services"]:
+                return app.run_db[self.runtime]["services"][path]
         state = {
             "payload": payload,
             "status": "Idle",
@@ -415,12 +417,12 @@ class Run(AbstractBase):
             },
             "attempt": 0,
             "waiting_time": {
-                "total": self.service.waiting_time,
-                "left": self.service.waiting_time,
+                "total": service.waiting_time,
+                "left": service.waiting_time,
             },
             "summary": {"success": [], "failure": []},
         }
-        if self.service.type == "workflow":
+        if service.type == "workflow":
             state.update(
                 {
                     "edges": defaultdict(int),
@@ -429,20 +431,20 @@ class Run(AbstractBase):
                 }
             )
             state["progress"]["service"] = {
-                "total": len(self.service.services),
+                "total": len(service.services),
                 "success": 0,
                 "failure": 0,
                 "skipped": 0,
             }
             state["progress"]["visited"] = defaultdict(int)
-        if self.runtime not in app.run_db:
-            app.run_db[self.runtime] = state
+        if path:
+            app.run_db[self.runtime]["services"][path] = state
         else:
-            if path not in app.run_db[self.runtime]["services"]:
-                app.run_db[self.runtime]["services"][path] = state
+            app.run_db[self.runtime] = state
+        return state
 
     def run(self, payload):
-        self.init_state(payload)
+        self.get_state(payload)
         self.run_state["status"] = "Running"
         start = datetime.now().replace(microsecond=0)
         try:
@@ -507,8 +509,8 @@ class Run(AbstractBase):
     def queue_worker(self):
         try:
             while True:
-                runtime, service_id, device_id = self.queue.get_nowait()
-                service = fetch("service", id=service_id)
+                runtime, path, device_id = self.queue.get_nowait()
+                service = fetch("service", id=path.split(">")[-1])
                 device = fetch("device", id=device_id)
                 run = fetch("run", runtime=runtime)
                 run.get_results(device, service)
@@ -518,8 +520,6 @@ class Run(AbstractBase):
 
     def device_run(self):
         self.devices = self.compute_devices()
-        if self.service.run_method != "once":
-            self.run_state["progress"]["device"]["total"] += len(self.devices)
         if self.service.iteration_devices and not self.parent_device:
             if not self.workflow:
                 return {
@@ -535,7 +535,7 @@ class Run(AbstractBase):
             threads = []
             thread_number = min(self.service.max_processes, len(self.devices))
             for device in self.devices:
-                self.queue.put((self.runtime, self.service_id, device.id))
+                self.queue.put((self.runtime, str(self.service_id), device.id))
             for _ in range(thread_number):
                 t = Thread(target=self.queue_worker)
                 threads.append(t)
@@ -612,6 +612,11 @@ class Run(AbstractBase):
     def get_results(self, device=None, service=None):
         if not service:
             service = self.service
+            path = str(self.service.id)
+        else:
+            path = f"{self.service.id}>{service.id}"
+        state = self.get_state(path=path, service=service)
+        state["progress"]["device"]["total"] += 1
         self.log("info", "STARTING", device)
         start = datetime.now().replace(microsecond=0)
         skip_service = False
@@ -619,21 +624,15 @@ class Run(AbstractBase):
             skip_service = self.eval(service.skip_query, **locals())[0]
         if skip_service or service.skip:
             if device:
-                self.run_state["progress"]["device"]["skipped"] += 1
+                state["progress"]["device"]["skipped"] += 1
                 key = "success" if self.skip_value == "True" else "failure"
-                self.run_state["summary"][key].append(device.name)
+                state["summary"][key].append(device.name)
             return {
                 "result": "skipped",
                 "success": service.skip_value == "True",
             }
         results = {"logs": []}
         try:
-            if self.restart_run and service.type == "workflow":
-                old_result = self.restart_run.result(
-                    device=device.name if device else None
-                )
-                if old_result and "payload" in old_result.result:
-                    self.run_state["payload"].update(old_result["payload"])
             if service.iteration_values:
                 targets_results = {}
                 targets = self.eval(service.iteration_values, **locals())[0]
@@ -662,11 +661,11 @@ class Run(AbstractBase):
         results["duration"] = str(datetime.now().replace(microsecond=0) - start)
         if device:
             status = "success" if results["success"] else "failure"
-            self.run_state["progress"]["device"][status] += 1
-            self.run_state["summary"][status].append(device.name)
+            state["progress"]["device"][status] += 1
+            state["summary"][status].append(device.name)
             self.create_result({"runtime": app.get_time(), **results}, service, device)
         if self.service.type == "workflow" and service in self.service.services:
-            next_jobs = self.get_next_jobs(results, device, service)
+            next_jobs = self.get_next_jobs(results, device, service, path, state)
             print(f"NEXT JOBS FOR {device.name}", next_jobs)
         self.log("info", "FINISHED", device)
         if service.send_notification:
@@ -677,16 +676,16 @@ class Run(AbstractBase):
         Session.commit()
         return results
 
-    def get_next_jobs(self, results, device, service):
+    def get_next_jobs(self, results, device, service, path, state):
         edge_type = "success" if results["success"] else "failure"
         if not device:
-            self.run_state["progress"]["service"][edge_type] += 1
+            state["progress"]["service"][edge_type] += 1
         for service, edge in service.adjacent_services(
             self.service, "destination", edge_type
         ):
             self.edge_state[edge.id] += 1
             self.queue.put(
-                (self.runtime, service.id, device.id if device else None)
+                (self.runtime, f"{path}>{service.id}", device.id if device else None)
             )
 
     def log(self, severity, content, device=None, service=None):

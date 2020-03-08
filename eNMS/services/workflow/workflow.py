@@ -98,8 +98,8 @@ class Workflow(Service):
 
     def job(self, run, device=None):
         start = fetch("service", scoped_name="Start")
-        queue = app.run_queue[run.parent_runtime]
-        queue.put((run.runtime, start.id, device.id if device else None))
+        queue = app.run_queue[run.runtime]
+        queue.put((run.runtime, str(start.id), device.id if device else None))
         return {"success": True}
 
     def tracking_bfs(self, run):
@@ -140,7 +140,7 @@ class Workflow(Service):
                     "workflow": self.id,
                     "restart_run": restart_run,
                     "parent": run,
-                    "parent_runtime": run.parent_runtime,
+                    "runtime": run.runtime,
                 }
                 if run.parent_device_id:
                     kwargs["parent_device"] = run.parent_device_id
@@ -206,7 +206,7 @@ class Workflow(Service):
                     "workflow": self.id,
                     "restart_run": restart_run,
                     "parent": run,
-                    "parent_runtime": run.parent_runtime,
+                    "runtime": run.runtime,
                 }
                 if run.parent_device_id:
                     kwargs["parent_device"] = run.parent_device_id
