@@ -104,14 +104,6 @@ class Workflow(Service):
 
     def tracking_bfs(self, run):
         number_of_runs = defaultdict(int)
-        payload = run.run_state["payload"]
-        start = fetch("service", scoped_name="Start")
-        end = fetch("service", scoped_name="End")
-        services = [fetch("service", id=id) for id in run.start_services]
-        visited, success, targets = set(), False, defaultdict(set)
-        restart_run = run.restart_run
-        for service in services:
-            targets[service.name] |= {device.name for device in run.devices}
         while services:
             if run.stop:
                 return {"payload": payload, "success": False}
@@ -122,61 +114,6 @@ class Workflow(Service):
             ):
                 continue
             number_of_runs[service.name] += 1
-            visited.add(service)
-            if service in (start, end):
-                results = {
-                    "summary": {
-                        "success": {device.name for device in run.devices},
-                        "failure": [],
-                    },
-                    "success": True,
-                }
-            else:
-                kwargs = {
-                    "devices": [
-                        fetch("device", name=name).id for name in targets[service.name]
-                    ],
-                    "service": service.id,
-                    "workflow": self.id,
-                    "restart_run": restart_run,
-                    "parent": run,
-                    "runtime": run.runtime,
-                }
-                if run.parent_device_id:
-                    kwargs["parent_device"] = run.parent_device_id
-                service_run = factory("run", **kwargs)
-                results = service_run.run(payload)
-            if service.run_method in ("once", "per_service_with_service_targets"):
-                edge_type = "success" if results["success"] else "failure"
-                for successor, edge in service.adjacent_services(
-                    self, "destination", edge_type
-                ):
-                    targets[successor.name] |= targets[service.name]
-                    services.append(successor)
-                    run.edge_state[edge.id] += len(targets[service.name])
-            else:
-                summary = results.get("summary", {})
-                for edge_type in ("success", "failure"):
-                    for successor, edge in service.adjacent_services(
-                        self, "destination", edge_type,
-                    ):
-                        if not summary[edge_type]:
-                            continue
-                        targets[successor.name] |= set(summary[edge_type])
-                        services.append(successor)
-                        run.edge_state[edge.id] += len(summary[edge_type])
-        success_devices = targets[end.name]
-        failure_devices = targets[start.name] - success_devices
-        success = not failure_devices
-        summary = {
-            "success": list(success_devices),
-            "failure": list(failure_devices),
-        }
-        run.run_state["progress"]["device"]["success"] = len(success_devices)
-        run.run_state["progress"]["device"]["failure"] = len(failure_devices)
-        run.run_state["summary"] = summary
-        Session.refresh(run)
-        run.restart_run = restart_run
         return {"payload": payload, "success": success}
 
     def standard_bfs(self, run, device=None):
