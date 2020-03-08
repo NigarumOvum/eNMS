@@ -162,7 +162,6 @@ class Service(AbstractBase):
     def filename(self):
         return app.strip_all(self.name)
 
-
     def match_dictionary(self, result, match, first=True):
         if self.validation_method == "dict_equal":
             return result == self.dict_match
@@ -319,13 +318,9 @@ class Run(AbstractBase):
     model_properties = ["progress", "service_properties"]
 
     def __init__(self, **kwargs):
-        self.runtime = kwargs.get("runtime") or app.get_time()
+        self.runtime = app.get_time()
+        self.path = str(self.service.id)
         super().__init__(**kwargs)
-        if not kwargs.get("parent_runtime"):
-            self.parent_runtime = self.runtime
-            self.path = str(self.service.id)
-        else:
-            self.path = f"{self.parent.path}>{self.service.id}"
         if not self.start_services:
             self.start_services = [fetch("service", scoped_name="Start").id]
 
@@ -352,14 +347,13 @@ class Run(AbstractBase):
     def service_properties(self):
         return {k: getattr(self.service, k) for k in ("id", "type", "name")}
 
-    @property
-    def run_state(self):
+    def run_state(self, path):
         if self.state:
             return self.state
-        elif self.runtime == self.parent_runtime:
-            return app.run_db[self.runtime]
+        elif path:
+            return app.run_db[self.runtime]["services"][path]
         else:
-            return app.run_db[self.parent_runtime]["services"][self.path]
+            return app.run_db[self.runtime]
 
     @property
     def edge_state(self):
@@ -414,7 +408,9 @@ class Run(AbstractBase):
                 devices |= set(pool.devices)
         return list(devices)
 
-    def init_state(self, payload):
+    def init_state(self, payload, path=None):
+        if not path:
+            path = self.path
         state = {
             "payload": payload,
             "status": "Idle",
@@ -430,7 +426,13 @@ class Run(AbstractBase):
             "summary": {"success": [], "failure": []},
         }
         if self.service.type == "workflow":
-            state.update({"edges": defaultdict(int), "services": defaultdict(dict)})
+            state.update(
+                {
+                    "edges": defaultdict(int),
+                    "services": defaultdict(dict),
+                    "runs": defaultdict(int),
+                }
+            )
             state["progress"]["service"] = {
                 "total": len(self.service.services),
                 "success": 0,
@@ -438,14 +440,11 @@ class Run(AbstractBase):
                 "skipped": 0,
             }
             state["progress"]["visited"] = defaultdict(int)
-        if self.runtime == self.parent_runtime:
-            if self.runtime in app.run_db:
-                return
+        if self.runtime not in app.run_db:
             app.run_db[self.runtime] = state
         else:
-            service_states = app.run_db[self.parent_runtime]["services"]
-            if self.path not in service_states:
-                service_states[self.path] = state
+            if path not in app.run_db[self.runtime]["services"]:
+                app.run_db[self.runtime]["services"][path] = state
 
     def run(self, payload):
         self.init_state(payload)
@@ -483,10 +482,6 @@ class Run(AbstractBase):
                 self.close_remaining_connections()
             if self.task and not self.task.frequency:
                 self.task.is_active = False
-            results["properties"] = {
-                "run": self.properties,
-                "service": self.service.get_properties(exclude=["positions"]),
-            }
             if (
                 self.runtime == self.parent_runtime
                 or len(self.devices) > 1
@@ -514,7 +509,6 @@ class Run(AbstractBase):
                 "parent_runtime": self.parent_runtime,
             },
         )
-        derived_run.properties = self.properties
         success = derived_run.run()["success"]
         key = "success" if success else "failure"
         self.run_state["summary"][key].append(device.name)
@@ -552,7 +546,7 @@ class Run(AbstractBase):
             thread_number = min(self.service.max_processes, len(self.devices))
             for device in self.devices:
                 self.queue.put((self.runtime, self.service_id, device.id))
-            for i in range(thread_number):
+            for _ in range(thread_number):
                 t = Thread(target=self.queue_worker)
                 threads.append(t)
                 t.start()
@@ -698,11 +692,14 @@ class Run(AbstractBase):
 
     def get_next_jobs(self, results, device, service):
         edge_type = "success" if results["success"] else "failure"
-        for service, _ in service.adjacent_services(
+        if not device:
+            self.run_state["progress"]["service"][edge_type] += 1
+        for service, edge in service.adjacent_services(
             self.service, "destination", edge_type
         ):
+            self.edge_state[edge.id] += 1
             self.queue.put(
-                (self.parent_runtime, service.id, device.id if device else None)
+                (self.runtime, service.id, device.id if device else None)
             )
 
     def log(self, severity, content, device=None, service=None):

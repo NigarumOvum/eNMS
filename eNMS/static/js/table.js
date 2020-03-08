@@ -662,7 +662,7 @@ tables.service = class ServiceTable extends Table {
 
   buttons(row) {
     return `
-      <ul class="pagination pagination-lg" style="margin: 0px; width: 270px">
+      <ul class="pagination pagination-lg" style="margin: 0px; width: 230px">
         <li>
           <button type="button" class="btn btn-sm btn-info"
           onclick="eNMS.automation.showRuntimePanel('results', ${row.instance})"

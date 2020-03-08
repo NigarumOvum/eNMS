@@ -214,9 +214,6 @@ class Workflow(Service):
                     kwargs["devices"] = [device.id]
                 service_run = factory("run", **kwargs)
                 results = service_run.run(payload)
-            if not device:
-                status = "success" if results["success"] else "failure"
-                run.run_state["progress"]["service"][status] += 1
             for successor, edge in service.adjacent_services(
                 self, "destination", "success" if results["success"] else "failure",
             ):

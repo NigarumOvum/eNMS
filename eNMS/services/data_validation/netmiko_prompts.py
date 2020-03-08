@@ -34,7 +34,12 @@ class NetmikoPromptsService(ConnectionService):
     def job(self, run, device):
         netmiko_connection = run.netmiko_connection(self, device)
         send_strings = (self.command, self.response1, self.response2, self.response3)
-        expect_strings = (self.confirmation1, self.confirmation2, self.confirmation3, None)
+        expect_strings = (
+            self.confirmation1,
+            self.confirmation2,
+            self.confirmation3,
+            None,
+        )
         commands = []
         results = {"commands": commands}
         for send_string, expect_string in zip(send_strings, expect_strings):
