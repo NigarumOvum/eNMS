@@ -138,7 +138,7 @@ class AutomationController(BaseController):
         runs = fetch("run", allow_none=True, all_matches=True, service_id=id)
         return sorted(
             set(
-                (run.parent_runtime, f"{run.parent_runtime} (run by '{run.creator}')")
+                (run.runtime, f"{run.runtime} (run by '{run.creator}')")
                 for run in runs
             )
         )

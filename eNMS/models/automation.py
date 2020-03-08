@@ -258,7 +258,7 @@ class Result(AbstractBase):
         self.runtime = kwargs["result"]["runtime"]
         self.duration = kwargs["result"]["duration"]
         super().__init__(**kwargs)
-        self.parent_runtime = self.run.parent_runtime
+        self.parent_runtime = self.run.runtime
 
 
 class ServiceLog(AbstractBase):
@@ -319,8 +319,8 @@ class Run(AbstractBase):
 
     def __init__(self, **kwargs):
         self.runtime = app.get_time()
-        self.path = str(self.service.id)
         super().__init__(**kwargs)
+        self.path = str(self.service.id)
         if not self.start_services:
             self.start_services = [fetch("service", scoped_name="Start").id]
 
@@ -343,13 +343,12 @@ class Run(AbstractBase):
     def service_properties(self):
         return {k: getattr(self.service, k) for k in ("id", "type", "name")}
 
-    def run_state(self, path):
-        if self.state:
-            return self.state
-        elif path:
-            return app.run_db[self.runtime]["services"][path]
-        else:
-            return app.run_db[self.runtime]
+    @property
+    def run_state(self):
+        return self.state or app.run_db[self.runtime]
+
+    def get_state(self, path):
+        return self.run_state["services"][path]
 
     @property
     def edge_state(self):
@@ -731,7 +730,7 @@ class Run(AbstractBase):
                 device_result = fetch(
                     "result",
                     service_id=self.service_id,
-                    parent_runtime=self.parent_runtime,
+                    runtime=self.runtime,
                     device_id=device.id,
                     allow_none=True,
                 )
@@ -950,7 +949,7 @@ class Run(AbstractBase):
             netmiko_connection.enable()
         if service.config_mode:
             netmiko_connection.config_mode()
-        app.connections_cache["netmiko"][self.parent_runtime][
+        app.connections_cache["netmiko"][self.runtime][
             device.name
         ] = netmiko_connection
         return netmiko_connection
@@ -1000,7 +999,7 @@ class Run(AbstractBase):
                 self.disconnect(library, device, connection)
 
     def get_connection(self, library, device):
-        cache = app.connections_cache[library].get(self.parent_runtime, {})
+        cache = app.connections_cache[library].get(self.runtime, {})
         return cache.get(device)
 
     def close_device_connection(self, device):
@@ -1022,7 +1021,7 @@ class Run(AbstractBase):
     def disconnect(self, library, device, connection):
         try:
             connection.disconnect() if library == "netmiko" else connection.close()
-            app.connections_cache[library][self.parent_runtime].pop(device)
+            app.connections_cache[library][self.runtime].pop(device)
             self.log("info", f"Closed {library} connection", device)
         except Exception as exc:
             self.log(
