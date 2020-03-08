@@ -201,7 +201,7 @@ class Service(AbstractBase):
                 for source, destination in files:
                     getattr(scp, self.direction)(source, destination)
 
-    def adjacent_services(self, workflow, direction, subtype):
+    def neighbors(self, workflow, direction, subtype):
         for edge in getattr(self, f"{direction}s"):
             if edge.subtype == subtype and edge.workflow == workflow:
                 yield getattr(edge, direction), edge
@@ -476,7 +476,7 @@ class Run(AbstractBase):
                 datetime.now().replace(microsecond=0) - start
             )
             self.state = results["state"] = app.run_db.pop(self.runtime)
-                
+
             if self.task and not self.task.frequency:
                 self.task.is_active = False
             self.create_result(results)
@@ -509,10 +509,11 @@ class Run(AbstractBase):
     def queue_worker(self):
         try:
             while True:
-                runtime, path, device_id = self.queue.get_nowait()
-                service = fetch("service", id=path.split(">")[-1])
-                device = fetch("device", id=device_id)
-                run = fetch("run", runtime=runtime)
+                data = self.queue.get_nowait()
+                service_id = data["path"].split(">")[-1]
+                service = fetch("service", id=service_id)
+                device = fetch("device", id=data["device"])
+                run = fetch("run", runtime=data["runtime"])
                 run.get_results(device, service)
                 self.queue.task_done()
         except Empty:
@@ -535,7 +536,13 @@ class Run(AbstractBase):
             threads = []
             thread_number = min(self.service.max_processes, len(self.devices))
             for device in self.devices:
-                self.queue.put((self.runtime, str(self.service_id), device.id))
+                self.queue.put(
+                    {
+                        "runtime": self.runtime,
+                        "service": str(self.service_id),
+                        "device": device.id,
+                    }
+                )
             for _ in range(thread_number):
                 t = Thread(target=self.queue_worker)
                 threads.append(t)
@@ -665,8 +672,19 @@ class Run(AbstractBase):
             state["summary"][status].append(device.name)
             self.create_result({"runtime": app.get_time(), **results}, service, device)
         if self.service.type == "workflow" and service in self.service.services:
-            next_jobs = self.get_next_jobs(results, device, service, path, state)
-            print(f"NEXT JOBS FOR {device.name}", next_jobs)
+            edge_type = "success" if results["success"] else "failure"
+            state["progress"]["service"][edge_type] += 1
+            for neighbor, edge in service.neighbors(
+                self.service, "destination", edge_type
+            ):
+                self.edge_state[edge.id] += 1
+                self.queue.put(
+                    {
+                        "runtime": self.runtime,
+                        "path": f"{path}>{neighbor.id}",
+                        "device": device.id if device else None,
+                    }
+                )
         self.log("info", "FINISHED", device)
         if service.send_notification:
             results = service.notify(results)
@@ -675,18 +693,6 @@ class Run(AbstractBase):
             sleep(service.waiting_time)
         Session.commit()
         return results
-
-    def get_next_jobs(self, results, device, service, path, state):
-        edge_type = "success" if results["success"] else "failure"
-        if not device:
-            state["progress"]["service"][edge_type] += 1
-        for service, edge in service.adjacent_services(
-            self.service, "destination", edge_type
-        ):
-            self.edge_state[edge.id] += 1
-            self.queue.put(
-                (self.runtime, f"{path}>{service.id}", device.id if device else None)
-            )
 
     def log(self, severity, content, device=None, service=None):
         if not service:
@@ -948,9 +954,7 @@ class Run(AbstractBase):
             netmiko_connection.enable()
         if service.config_mode:
             netmiko_connection.config_mode()
-        app.connections_cache["netmiko"][self.runtime][
-            device.name
-        ] = netmiko_connection
+        app.connections_cache["netmiko"][self.runtime][device.name] = netmiko_connection
         return netmiko_connection
 
     def napalm_connection(self, service, device):

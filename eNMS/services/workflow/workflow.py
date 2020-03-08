@@ -99,7 +99,13 @@ class Workflow(Service):
     def job(self, run, device=None):
         start = fetch("service", scoped_name="Start")
         queue = app.run_queue[run.runtime]
-        queue.put((run.runtime, str(start.id), device.id if device else None))
+        queue.put(
+            {
+                "runtime": run.runtime,
+                "path": str(start.id),
+                "device": device.id if device else None,
+            }
+        )
         return {"success": True}
 
     def tracking_bfs(self, run):
@@ -110,7 +116,7 @@ class Workflow(Service):
             service = services.pop()
             if number_of_runs[service.name] >= service.maximum_runs or any(
                 node not in visited
-                for node, _ in service.adjacent_services(self, "source", "prerequisite")
+                for node, _ in service.neighbors(self, "source", "prerequisite")
             ):
                 continue
             number_of_runs[service.name] += 1
@@ -130,7 +136,7 @@ class Workflow(Service):
             service = services.pop()
             if number_of_runs[service.name] >= service.maximum_runs or any(
                 node not in visited
-                for node, _ in service.adjacent_services(self, "source", "prerequisite")
+                for node, _ in service.neighbors(self, "source", "prerequisite")
             ):
                 continue
             number_of_runs[service.name] += 1
@@ -151,7 +157,7 @@ class Workflow(Service):
                     kwargs["devices"] = [device.id]
                 service_run = factory("run", **kwargs)
                 results = service_run.run(payload)
-            for successor, edge in service.adjacent_services(
+            for successor, edge in service.neighbors(
                 self, "destination", "success" if results["success"] else "failure",
             ):
                 services.append(successor)
