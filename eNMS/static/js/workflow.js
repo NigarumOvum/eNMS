@@ -656,7 +656,6 @@ function getResultLink(service, device) {
 
 Object.assign(action, {
   "Run Workflow": () => runWorkflow(),
-  "Parameterized Workflow Run": () => runWorkflow(true),
   "Create Workflow": () => createNew("create_workflow"),
   "Duplicate Workflow": () => createNew("duplicate_workflow"),
   "Create New Service": () => createNew("create_service"),
@@ -734,11 +733,7 @@ function editLabel(label) {
 
 function runWorkflow(withUpdates) {
   resetDisplay();
-  if (withUpdates) {
-    showTypePanel("workflow", workflow.id, "run");
-  } else {
-    normalRun(workflow.id);
-  }
+  normalRun(workflow.id);
 }
 
 function showRestartWorkflowPanel(workflow, service) {

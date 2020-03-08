@@ -466,14 +466,6 @@ function showServicePanel(type, id, mode) {
   });
   $(".buttonFinish,.buttonNext,.buttonPrevious").hide();
   $(id ? `#${type}-wizard-${id}` : `#${type}-wizard`).smartWizard("fixHeight");
-  if (mode == "run") {
-    $(`#${type}-btn-${id}`)
-      .removeClass("btn-success")
-      .addClass("btn-primary")
-      .attr("onclick", `eNMS.automation.parameterizedRun('${type}', ${id})`)
-      .text("Run");
-    $(".readonly-when-run").prop("readonly", true);
-  }
 }
 
 function configureServicePanel(type, id, mode) {

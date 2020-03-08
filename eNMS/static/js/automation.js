@@ -412,17 +412,6 @@ export const normalRun = function(id) {
   });
 };
 
-function parameterizedRun(type, id) {
-  call({
-    url: `/run_service/${id}`,
-    form: `edit-${type}-form-${id}`,
-    callback: function(result) {
-      $(`#${type}-${id}`).remove();
-      runLogic(result);
-    },
-  });
-}
-
 export function runLogic(result) {
   showRuntimePanel("logs", result.service, result.runtime);
   notify(`Service '${result.service.name}' started.`, "success", 5);
@@ -543,7 +532,6 @@ Object.assign(action, {
   Edit: (service) => showTypePanel(service.type, service.id),
   Duplicate: (service) => showTypePanel(service.type, service.id, "duplicate"),
   Run: (service) => normalRun(service.id),
-  "Parameterized Run": (service) => showTypePanel(service.type, service.id, "run"),
   Results: (service) => showRuntimePanel("results", service),
   Backward: () => switchToWorkflow(arrowHistory[arrowPointer - 1], "left"),
   Forward: () => switchToWorkflow(arrowHistory[arrowPointer + 1], "right"),
@@ -565,7 +553,6 @@ configureNamespace("automation", [
   field,
   normalRun,
   openServicePanel,
-  parameterizedRun,
   pauseTask,
   resumeTask,
   schedulerAction,

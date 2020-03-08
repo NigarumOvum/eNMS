@@ -682,13 +682,6 @@ tables.service = class ServiceTable extends Table {
           ></button>
         </li>
         <li>
-          <button type="button" class="btn btn-sm btn-success"
-          onclick="eNMS.base.showTypePanel('${row.type}', '${row.id}', 'run')"
-          data-tooltip="Parameterized Run"
-            ><span class="glyphicon glyphicon-play-circle"></span
-          ></button>
-        </li>
-        <li>
           <button
             type="button"
             class="btn btn-sm btn-primary"

@@ -286,13 +286,6 @@ Running a service
 You can run a service from the "Services" page ("Run" button) or from the "Workflow Builder"
 (right-click menu).
 
-There are two types of runs:
-
-- Standard run: uses the service properties during the run.
-- Parameterized run: a window is displayed with all properties initialized to the service
-properties. You can change any property for the current run, but these changes won't be saved
-back to the service properties.
-
 Results
 *******
 
