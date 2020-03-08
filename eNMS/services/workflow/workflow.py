@@ -97,15 +97,6 @@ class Workflow(Service):
         return sum([w.edges for w in self.deep_services if w.type == "workflow"], [])
 
     def job(self, run, device=None):
-        start = fetch("service", scoped_name="Start")
-        queue = app.run_queue[run.runtime]
-        queue.put(
-            {
-                "runtime": run.runtime,
-                "path": str(start.id),
-                "device": device.id if device else None,
-            }
-        )
         return {"success": True}
 
     def tracking_bfs(self, run):

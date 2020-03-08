@@ -510,11 +510,9 @@ class Run(AbstractBase):
         try:
             while True:
                 data = self.queue.get_nowait()
-                service_id = data["path"].split(">")[-1]
-                service = fetch("service", id=service_id)
                 device = fetch("device", id=data["device"])
                 run = fetch("run", runtime=data["runtime"])
-                run.get_results(device, service)
+                run.get_results(device, data["path"])
                 self.queue.task_done()
         except Empty:
             pass
@@ -589,7 +587,6 @@ class Run(AbstractBase):
                 if service.number_of_retries - retries:
                     retry = service.number_of_retries - retries
                     self.log("error", f"RETRY n°{retry}", device)
-
                 results = service.job(self, *args)
                 if device and getattr(self, "close_connection", False):
                     self.close_device_connection(device.name)
@@ -616,15 +613,30 @@ class Run(AbstractBase):
                 results = {"success": False, "result": result}
         return results
 
-    def get_results(self, device=None, service=None):
-        if not service:
-            service = self.service
-            path = str(self.service.id)
+    def get_results(self, device=None, path=None):
+        service_path = path.split(">")
+        service = fetch("service", id=service_path[-1])
+        if len(service_path) > 1:
+            workflow = fetch("service", id=service_path[-2])
         else:
-            path = f"{self.service.id}>{service.id}"
+            workflow = None
+        if len(service_path) > 2:
+            preworkflow = fetch("service", id=service_path[-3])
+        else:
+            preworkflow = None
         state = self.get_state(path=path, service=service)
         state["progress"]["device"]["total"] += 1
         self.log("info", "STARTING", device)
+        if service.type == "workflow":
+            start = fetch("service", scoped_name="Start")
+            self.queue.put(
+                {
+                    "runtime": self.runtime,
+                    "path": f"{path}>{start.id}",
+                    "device": device.id if device else None,
+                }
+            )
+            return
         start = datetime.now().replace(microsecond=0)
         skip_service = False
         if service.skip_query:
@@ -666,21 +678,35 @@ class Run(AbstractBase):
             )
             self.log("error", chr(10).join(format_exc().splitlines()), device)
         results["duration"] = str(datetime.now().replace(microsecond=0) - start)
+        status = "success" if results["success"] else "failure"
         if device:
-            status = "success" if results["success"] else "failure"
             state["progress"]["device"][status] += 1
             state["summary"][status].append(device.name)
             self.create_result({"runtime": app.get_time(), **results}, service, device)
-        if self.service.type == "workflow" and service in self.service.services:
-            edge_type = "success" if results["success"] else "failure"
-            for neighbor, edge in service.neighbors(
-                self.service, "destination", edge_type
+        if service.scoped_name == "End" and preworkflow and results["success"]:
+            print("ouesh"*1000, service, path, preworkflow)
+            for neighbor, edge in workflow.neighbors(
+                preworkflow, "destination", "success"
             ):
-                self.edge_state[edge.id] += 1
+                prepath = ">".join(service_path[:-2])
+                print(prepath, neighbor.name, workflow, preworkflow)
                 self.queue.put(
                     {
                         "runtime": self.runtime,
-                        "path": f"{path}>{neighbor.id}",
+                        "path": f"{prepath}>{neighbor.id}",
+                        "device": device.id if device else None,
+                    }
+                )
+        elif workflow:
+            for neighbor, edge in service.neighbors(
+                workflow, "destination", status
+            ):
+                self.edge_state[edge.id] += 1
+                prepath = ">".join(service_path[:-1])
+                self.queue.put(
+                    {
+                        "runtime": self.runtime,
+                        "path": f"{prepath}>{neighbor.id}",
                         "device": device.id if device else None,
                     }
                 )
