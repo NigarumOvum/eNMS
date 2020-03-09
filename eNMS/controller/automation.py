@@ -388,15 +388,15 @@ class AutomationController(BaseController):
         }
 
     def get_service_state(self, path, runtime=None):
-        service_id = path.split(">")[-1]
-        state, service = None, fetch("service", id=service_id)
-        runs = fetch_all("run", service_id=service_id)
+        state, service = None, fetch("service", id=path.split(">")[-1])
+        runs = fetch_all("run", service_id=path.split(">")[0])
         if not runtime:
             runtime = "latest"
         if runs and runtime != "normal":
             if runtime == "latest":
                 runtime = runs[-1].runtime
             state = self.run_db.get(runtime) or fetch("run", runtime=runtime).state
+        print(runtime)
         return {
             "service": service.to_dict(include=["services", "edges"]),
             "runtimes": sorted(set((r.runtime, r.creator) for r in runs)),
