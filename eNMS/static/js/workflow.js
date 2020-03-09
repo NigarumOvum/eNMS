@@ -806,6 +806,7 @@ function displayWorkflowState(result) {
   if (!nodes || !edges || !result.state || !result.state.progress) return;
   if (result.state.services) {
     $.each(result.state.services, (path, state) => {
+      
       const id = parseInt(path.split(">").slice(-1)[0]);
       if (ends.has(id) || !(id in nodes._data)) return;
       const progress = state.progress.device;

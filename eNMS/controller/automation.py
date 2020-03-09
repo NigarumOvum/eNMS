@@ -291,9 +291,9 @@ class AutomationController(BaseController):
             progress = state["services"][service.id].get("progress")
             track_progress = progress and progress["device"]["total"]
             data = {"progress": progress["device"]} if track_progress else {}
-            color = "32CD32" if all(run.success for run in results) else "FF6666"
+            color = "32CD32" if all(result.success for result in results) else "FF6666"
             result = {
-                "runtime": runtime,
+                "runtime": min(result.runtime for result in results),
                 "data": {"properties": service.base_properties, **data},
                 "text": service.scoped_name,
                 "a_attr": {"style": f"color: #{color};width: 100%"},

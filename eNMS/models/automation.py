@@ -344,9 +344,6 @@ class Run(AbstractBase):
     def run_state(self):
         return self.state or app.run_db[self.runtime]
 
-    def get_state(self, path):
-        return self.run_state["services"][path]
-
     @property
     def edge_state(self):
         return app.run_db[self.runtime]["edges"]
@@ -529,7 +526,7 @@ class Run(AbstractBase):
             results = [self.device_iteration(device) for device in self.devices]
             return {"success": all(results), "runtime": self.runtime}
         elif self.service.run_method != "per_device":
-            return self.get_results()
+            return self.get_results(path=str(self.service_id))
         else:
             threads = []
             thread_number = min(self.service.max_processes, len(self.devices))
@@ -618,6 +615,7 @@ class Run(AbstractBase):
         service = fetch("service", id=service_path[-1])
         if len(service_path) > 1:
             workflow = fetch("service", id=service_path[-2])
+            workflow_state = self.get_state(path="".join(service_path[:-1]), service=workflow)
         else:
             workflow = None
         if len(service_path) > 2:
@@ -636,7 +634,6 @@ class Run(AbstractBase):
                     "device": device.id if device else None,
                 }
             )
-            return
         start = datetime.now().replace(microsecond=0)
         skip_service = False
         if service.skip_query:
@@ -684,12 +681,11 @@ class Run(AbstractBase):
             state["summary"][status].append(device.name)
             self.create_result({"runtime": app.get_time(), **results}, service, device)
         if service.scoped_name == "End" and preworkflow and results["success"]:
-            print("ouesh"*1000, service, path, preworkflow)
+            #workflow_state["progress"]["device"]["success"] += 1
             for neighbor, edge in workflow.neighbors(
                 preworkflow, "destination", "success"
             ):
                 prepath = ">".join(service_path[:-2])
-                print(prepath, neighbor.name, workflow, preworkflow)
                 self.queue.put(
                     {
                         "runtime": self.runtime,
