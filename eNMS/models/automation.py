@@ -575,7 +575,7 @@ class Run(AbstractBase):
                 )
         factory("result", **result_kw)
 
-    def run_service_job(self, device, service):
+    def run_service(self, device, service):
         args = (device,) if device else ()
         retries, total_retries = service.number_of_retries + 1, 0
         while retries and total_retries < service.max_number_of_retries:
@@ -619,6 +619,9 @@ class Run(AbstractBase):
             workflow_state = self.get_state(
                 path="".join(service_path[:-1]), service=workflow
             )
+            if workflow_state["runs"][f"{path}-{service.id}"] >= service.maximum_runs:
+                return
+            workflow_state["runs"][f"{path}-{service.id}"] += 1
         else:
             workflow = None
         if len(service_path) > 2:
@@ -668,7 +671,7 @@ class Run(AbstractBase):
                         target_value,
                         device=getattr(device, "name", None),
                     )
-                    targets_results[target_name] = self.run_service_job(device, service)
+                    targets_results[target_name] = self.run_service(device, service)
                 results.update(
                     {
                         "result": targets_results,
@@ -676,7 +679,7 @@ class Run(AbstractBase):
                     }
                 )
             else:
-                results.update(self.run_service_job(device, service))
+                results.update(self.run_service(device, service))
         except Exception:
             results.update(
                 {"success": False, "result": chr(10).join(format_exc().splitlines())}

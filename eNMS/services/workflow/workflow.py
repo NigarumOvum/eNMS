@@ -114,12 +114,6 @@ class Workflow(Service):
         return {"payload": payload, "success": success}
 
     def standard_bfs(self, run, device=None):
-        payload = run.run_state["payload"]
-        number_of_runs = defaultdict(int)
-        start = fetch("service", scoped_name="Start")
-        end = fetch("service", scoped_name="End")
-        services = [fetch("service", id=id) for id in run.start_services]
-        restart_run = run.restart_run
         visited = set()
         while services:
             if run.stop:
