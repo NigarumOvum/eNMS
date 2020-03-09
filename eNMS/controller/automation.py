@@ -396,7 +396,6 @@ class AutomationController(BaseController):
             if runtime == "latest":
                 runtime = runs[-1].runtime
             state = self.run_db.get(runtime) or fetch("run", runtime=runtime).state
-        print(runtime)
         return {
             "service": service.to_dict(include=["services", "edges"]),
             "runtimes": sorted(set((r.runtime, r.creator) for r in runs)),

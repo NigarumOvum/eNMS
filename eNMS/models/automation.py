@@ -256,7 +256,7 @@ class Result(AbstractBase):
     def __init__(self, **kwargs):
         self.success = kwargs["result"]["success"]
         self.runtime = kwargs["result"]["runtime"]
-        self.duration = kwargs["result"]["duration"]
+        self.duration = kwargs["result"].get("duration", "00:00:00")
         super().__init__(**kwargs)
         self.run_runtime = self.run.runtime
 
@@ -557,7 +557,7 @@ class Run(AbstractBase):
             "result": results,
             "service": service.id,
             "runtime": results["runtime"],
-            "run_runtime": self.runtime
+            "run_runtime": self.runtime,
         }
         if self.workflow_id:
             result_kw["workflow"] = self.workflow_id
@@ -616,7 +616,9 @@ class Run(AbstractBase):
         service = fetch("service", id=service_path[-1])
         if len(service_path) > 1:
             workflow = fetch("service", id=service_path[-2])
-            workflow_state = self.get_state(path="".join(service_path[:-1]), service=workflow)
+            workflow_state = self.get_state(
+                path="".join(service_path[:-1]), service=workflow
+            )
         else:
             workflow = None
         if len(service_path) > 2:
@@ -635,6 +637,7 @@ class Run(AbstractBase):
                     "device": device.id if device else None,
                 }
             )
+            return
         start = datetime.now().replace(microsecond=0)
         skip_service = False
         if service.skip_query:
@@ -681,11 +684,21 @@ class Run(AbstractBase):
             state["progress"]["device"][status] += 1
             state["summary"][status].append(device.name)
             self.create_result({"runtime": app.get_time(), **results}, service, device)
-        if service.scoped_name == "End" and preworkflow and results["success"]:
+        if service.scoped_name == "End" and preworkflow:
+            self.create_result(
+                {
+                    "runtime": app.get_time(),
+                    "service": "End",
+                    **results,
+                },
+                workflow,
+                device,
+            )
             workflow_state["progress"]["device"]["success"] += 1
             for neighbor, edge in workflow.neighbors(
                 preworkflow, "destination", "success"
             ):
+                self.edge_state[edge.id] += 1
                 prepath = ">".join(service_path[:-2])
                 self.queue.put(
                     {
@@ -694,19 +707,30 @@ class Run(AbstractBase):
                         "device": device.id if device else None,
                     }
                 )
-        elif workflow:
-            for neighbor, edge in service.neighbors(
-                workflow, "destination", status
-            ):
-                self.edge_state[edge.id] += 1
-                prepath = ">".join(service_path[:-1])
-                self.queue.put(
+        elif workflow and service.type != "workflow":
+            neighbors = list(service.neighbors(workflow, "destination", status))
+            if not neighbors:
+                self.create_result(
                     {
-                        "runtime": self.runtime,
-                        "path": f"{prepath}>{neighbor.id}",
-                        "device": device.id if device else None,
-                    }
+                        "runtime": app.get_time(),
+                        "service": service.scoped_name,
+                        **results,
+                    },
+                    workflow,
+                    device,
                 )
+                workflow_state["progress"]["device"]["failure"] += 1
+            else:
+                for neighbor, edge in neighbors:
+                    self.edge_state[edge.id] += 1
+                    prepath = ">".join(service_path[:-1])
+                    self.queue.put(
+                        {
+                            "runtime": self.runtime,
+                            "path": f"{prepath}>{neighbor.id}",
+                            "device": device.id if device else None,
+                        }
+                    )
         self.log("info", "FINISHED", device)
         if service.send_notification:
             results = service.notify(results)
