@@ -651,7 +651,11 @@ class Run(AbstractBase):
                 "result": "skipped",
                 "success": service.skip_value == "True",
             }
-        results = {"logs": []}
+        results = {
+            "logs": [],
+            "runtime": app.get_time(),
+            "service": service.scoped_name,
+        }
         try:
             if service.iteration_values:
                 targets_results = {}
@@ -683,17 +687,9 @@ class Run(AbstractBase):
         if device:
             state["progress"]["device"][status] += 1
             state["summary"][status].append(device.name)
-            self.create_result({"runtime": app.get_time(), **results}, service, device)
+            self.create_result(results, service, device)
         if service.scoped_name == "End" and preworkflow:
-            self.create_result(
-                {
-                    "runtime": app.get_time(),
-                    "service": "End",
-                    **results,
-                },
-                workflow,
-                device,
-            )
+            self.create_result(results, workflow, device)
             workflow_state["progress"]["device"]["success"] += 1
             for neighbor, edge in workflow.neighbors(
                 preworkflow, "destination", "success"
@@ -710,15 +706,7 @@ class Run(AbstractBase):
         elif workflow and service.type != "workflow":
             neighbors = list(service.neighbors(workflow, "destination", status))
             if not neighbors:
-                self.create_result(
-                    {
-                        "runtime": app.get_time(),
-                        "service": service.scoped_name,
-                        **results,
-                    },
-                    workflow,
-                    device,
-                )
+                self.create_result(results, workflow, device)
                 workflow_state["progress"]["device"]["failure"] += 1
             else:
                 for neighbor, edge in neighbors:
