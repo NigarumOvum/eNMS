@@ -232,7 +232,7 @@ class Result(AbstractBase):
     result = Column(MutableDict)
     run_id = Column(Integer, ForeignKey("run.id"))
     run = relationship("Run", back_populates="results", foreign_keys="Result.run_id")
-    parent_runtime = Column(SmallString)
+    run_runtime = Column(SmallString)
     parent_device_id = Column(Integer, ForeignKey("device.id"))
     parent_device = relationship("Device", uselist=False, foreign_keys=parent_device_id)
     parent_device_name = association_proxy("parent_device", "name")
@@ -258,7 +258,7 @@ class Result(AbstractBase):
         self.runtime = kwargs["result"]["runtime"]
         self.duration = kwargs["result"]["duration"]
         super().__init__(**kwargs)
-        self.parent_runtime = self.run.runtime
+        self.run_runtime = self.run.runtime
 
 
 class ServiceLog(AbstractBase):
@@ -556,7 +556,8 @@ class Run(AbstractBase):
             "run": self,
             "result": results,
             "service": service.id,
-            "runtime": self.runtime,
+            "runtime": results["runtime"],
+            "run_runtime": self.runtime
         }
         if self.workflow_id:
             result_kw["workflow"] = self.workflow_id
@@ -681,7 +682,7 @@ class Run(AbstractBase):
             state["summary"][status].append(device.name)
             self.create_result({"runtime": app.get_time(), **results}, service, device)
         if service.scoped_name == "End" and preworkflow and results["success"]:
-            #workflow_state["progress"]["device"]["success"] += 1
+            workflow_state["progress"]["device"]["success"] += 1
             for neighbor, edge in workflow.neighbors(
                 preworkflow, "destination", "success"
             ):

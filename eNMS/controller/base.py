@@ -407,7 +407,7 @@ class BaseController:
                 ).has(id=kwargs["instance"]["id"])
             )
             if kwargs.get("runtime"):
-                constraints.append(models["result"].runtime == kwargs["runtime"])
+                constraints.append(models["result"].run_runtime == kwargs["runtime"])
         if table == "service":
             workflow_id = kwargs["form"].get("workflow-filtering")
             if workflow_id:

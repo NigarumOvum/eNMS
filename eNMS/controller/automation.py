@@ -281,7 +281,7 @@ class AutomationController(BaseController):
         def rec(service):
             results = fetch(
                 "result",
-                runtime=runtime,
+                run_runtime=runtime,
                 allow_none=True,
                 all_matches=True,
                 service_id=service.id,
