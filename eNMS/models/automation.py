@@ -878,7 +878,7 @@ class Run(AbstractBase):
     def get_result(self, service_name, device=None, workflow=None):
         def filter_run(query, property):
             query = query.filter(
-                models["run"].service.has(
+                models["result"].service.has(
                     getattr(models["service"], property) == service_name
                 )
             )
@@ -887,20 +887,25 @@ class Run(AbstractBase):
         def recursive_search(run: "Run"):
             if not run:
                 return None
-            query = Session.query(models["run"]).filter(
-                models["run"].parent_runtime == run.parent_runtime
+            query = Session.query(models["result"]).filter(
+                models["result"].run_runtime == run.runtime
             )
             if workflow or self.workflow:
                 name = workflow or self.workflow.name
-                query.filter(
-                    models["run"].workflow.has(models["workflow"].name == name)
+                query = query.filter(
+                    models["result"].workflow.has(models["workflow"].name == name)
                 )
-            runs = filter_run(query, "scoped_name") or filter_run(query, "name")
-            results = list(filter(None, [run.result(device) for run in runs]))
+            if device:
+                query = query.filter(
+                    models["result"].device.has(
+                        models["result"].name == device_name
+                    )
+                )
+            result = filter_run(query, "scoped_name") or filter_run(query, "name")
             if not results:
                 return recursive_search(run.restart_run)
             else:
-                return results.pop().result
+                return result[0]
 
         return recursive_search(self)
 
