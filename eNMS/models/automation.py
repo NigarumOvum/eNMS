@@ -600,17 +600,22 @@ class Run(AbstractBase):
         service_path = path.split(">")
         workflow_path = "".join(service_path[:-1])
         service = fetch("service", id=service_path[-1])
-        device_id = device.id if device and service.run_method == "per_device" else None
+        device_id = device.id if device else None
         if len(service_path) > 1:
             workflow = fetch("service", id=service_path[-2])
             workflow_state = self.get_state(path=workflow_path, service=workflow)
-            index = f"{path}-{device_id}"
+            index = f"{path}-{device_id}" if service.run_method == "per_device" else path
             if workflow_state["runs"][index] >= service.maximum_runs:
+                if service.run_method == "once":
+                    for neighbor, edge in service.neighbors(workflow, "destination", "success"):
+                        self.edge_state[edge.id] += 1
+                        self.queue.put(
+                            (1, self.runtime, f"{workflow_path}>{neighbor.id}", device_id)
+                        )
                 return
             workflow_state["runs"][index] += 1
             for neighbor, _ in service.neighbors(workflow, "source", "prerequisite"):
-                device_index = device_id if neighbor.run_method == "per_device" else "None"
-                neighbor_index = f"{workflow_path}>{neighbor.id}-{device_index}"
+                neighbor_index = f"{workflow_path}>{neighbor.id}-{device_id}"
                 if neighbor_index not in workflow_state["runs"]:
                     self.queue.put((priority + 1, self.runtime, path, device_id))
                     return
@@ -684,8 +689,7 @@ class Run(AbstractBase):
                 preworkflow, "destination", "success"
             ):
                 self.edge_state[edge.id] += 1
-                prepath = ">".join(service_path[:-2])
-                self.queue.put((1, self.runtime, f"{prepath}>{neighbor.id}", device_id))
+                self.queue.put((1, self.runtime, f"{workflow_path}>{neighbor.id}", device_id))
         elif workflow and service.type != "workflow":
             neighbors = list(service.neighbors(workflow, "destination", status))
             if not neighbors:
