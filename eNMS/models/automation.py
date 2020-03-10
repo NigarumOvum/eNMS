@@ -603,7 +603,7 @@ class Run(AbstractBase):
                     pass
                 if results["success"] and service.validation_method != "none":
                     self.validate_result(results, service, device)
-                if self.negative_logic:
+                if service.negative_logic:
                     results["success"] = not results["success"]
                 if results["success"]:
                     return results
