@@ -533,7 +533,7 @@ class Run(AbstractBase):
             result_kw["workflow"] = self.workflow_id
         if self.parent_device_id:
             result_kw["parent_device"] = self.parent_device_id
-        if device:
+        if device and service.run_method == "per_device":
             result_kw["device"] = device.id
         if not device:
             for service_id, log in app.run_logs.pop(self.runtime, {}).items():
@@ -590,7 +590,7 @@ class Run(AbstractBase):
                     break
                 priority, runtime, path, device = self.queue.get_nowait()
                 run = fetch("run", runtime=runtime)
-                device = fetch("device", id=device)
+                device = fetch("device", allow_none=True, id=device)
                 run.get_results(priority, path, device)
                 self.queue.task_done()
         except Empty:
@@ -600,7 +600,7 @@ class Run(AbstractBase):
         service_path = path.split(">")
         workflow_path = "".join(service_path[:-1])
         service = fetch("service", id=service_path[-1])
-        device_id = device.id if device else None
+        device_id = device.id if device and service.run_method == "per_device" else None
         if len(service_path) > 1:
             workflow = fetch("service", id=service_path[-2])
             workflow_state = self.get_state(path=workflow_path, service=workflow)
@@ -622,7 +622,7 @@ class Run(AbstractBase):
             preworkflow = None
         state = self.get_state(path=path, service=service)
         state["progress"]["device"]["total"] += 1
-        self.log("info", "STARTING", device)
+        self.log("info", "STARTING", device, service)
         if service.type == "workflow":
             start = fetch("service", scoped_name="Start")
             self.queue.put((1, self.runtime, f"{path}>{start.id}", device_id))
@@ -670,13 +670,13 @@ class Run(AbstractBase):
             results.update(
                 {"success": False, "result": chr(10).join(format_exc().splitlines())}
             )
-            self.log("error", chr(10).join(format_exc().splitlines()), device)
+            self.log("error", chr(10).join(format_exc().splitlines()), device, service)
         results["duration"] = str(datetime.now().replace(microsecond=0) - start)
         status = "success" if results["success"] else "failure"
         if device:
             state["progress"]["device"][status] += 1
             state["summary"][status].append(device.name)
-            self.create_result(results, service, device)
+        self.create_result(results, service, device)
         if service.scoped_name == "End" and preworkflow:
             self.create_result(results, workflow, device)
             workflow_state["progress"]["device"]["success"] += 1
@@ -698,7 +698,7 @@ class Run(AbstractBase):
                     self.queue.put(
                         (1, self.runtime, f"{prepath}>{neighbor.id}", device_id)
                     )
-        self.log("info", "FINISHED", device)
+        self.log("info", "FINISHED", device, service)
         if service.send_notification:
             results = service.notify(results)
         if service.waiting_time:
