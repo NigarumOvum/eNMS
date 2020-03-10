@@ -512,7 +512,7 @@ class Run(AbstractBase):
             thread = Thread(target=self.queue_worker)
             threads.append(thread)
             thread.start()
-        for t in threads:
+        for thread in threads:
             thread.join()
         result = self.run_state["progress"]["device"]
         success = result["total"] == result["success"] + result["skipped"]
