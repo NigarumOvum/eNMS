@@ -6,7 +6,6 @@ from functools import partial
 from io import BytesIO
 from json import dumps, loads
 from json.decoder import JSONDecodeError
-from multiprocessing.pool import ThreadPool
 from napalm import get_network_driver
 from netmiko import ConnectHandler
 from os import environ
@@ -898,9 +897,7 @@ class Run(AbstractBase):
                 )
             if device:
                 query = query.filter(
-                    models["result"].device.has(
-                        models["result"].device_name == device
-                    )
+                    models["result"].device.has(models["result"].device_name == device)
                 )
             result = filter_run(query, "scoped_name") or filter_run(query, "name")
             if not result:
