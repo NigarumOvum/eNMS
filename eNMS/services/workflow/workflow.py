@@ -99,18 +99,6 @@ class Workflow(Service):
     def job(self, run, device=None):
         return {"success": True}
 
-    def tracking_bfs(self, run):
-        number_of_runs = defaultdict(int)
-        while services:
-            service = services.pop()
-            if number_of_runs[service.name] >= service.maximum_runs or any(
-                node not in visited
-                for node, _ in service.neighbors(self, "source", "prerequisite")
-            ):
-                continue
-            number_of_runs[service.name] += 1
-        return {"payload": payload, "success": success}
-
     def standard_bfs(self, run, device=None):
         visited = set()
         while services:
