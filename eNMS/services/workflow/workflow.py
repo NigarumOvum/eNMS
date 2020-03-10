@@ -99,47 +99,6 @@ class Workflow(Service):
     def job(self, run, device=None):
         return {"success": True}
 
-    def standard_bfs(self, run, device=None):
-        visited = set()
-        while services:
-            if run.stop:
-                return {"payload": payload, "success": False}
-            service = services.pop()
-            if number_of_runs[service.name] >= service.maximum_runs or any(
-                node not in visited
-                for node, _ in service.neighbors(self, "source", "prerequisite")
-            ):
-                continue
-            number_of_runs[service.name] += 1
-            visited.add(service)
-            if service in (start, end):
-                results = {"result": "skipped", "success": True}
-            else:
-                kwargs = {
-                    "service": service.id,
-                    "workflow": self.id,
-                    "restart_run": restart_run,
-                    "parent": run,
-                    "runtime": run.runtime,
-                }
-                if run.parent_device_id:
-                    kwargs["parent_device"] = run.parent_device_id
-                if device:
-                    kwargs["devices"] = [device.id]
-                service_run = factory("run", **kwargs)
-                results = service_run.run(payload)
-            for successor, edge in service.neighbors(
-                self, "destination", "success" if results["success"] else "failure",
-            ):
-                services.append(successor)
-                if device:
-                    run.edge_state[edge.id] += 1
-                else:
-                    run.edge_state[edge.id] = "DONE"
-        Session.refresh(run)
-        run.restart_run = restart_run
-        return {"payload": payload, "success": end in visited}
-
 
 class WorkflowForm(ServiceForm):
     form_type = HiddenField(default="workflow")
