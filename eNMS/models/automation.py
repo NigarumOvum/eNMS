@@ -621,9 +621,10 @@ class Run(AbstractBase):
                 return
             workflow_state["runs"][index] += 1
             for neighbor, _ in service.neighbors(workflow, "source", "prerequisite"):
-                neighbor_index = f"{workflow_path}>{neighbor.id}-{device_id}"
+                device_index = device_id if neighbor.run_method == "per_device" else "None"
+                neighbor_index = f"{workflow_path}>{neighbor.id}-{device_index}"
                 if neighbor_index not in workflow_state["runs"]:
-                    self.queue.put((priority + 1, self.runtime, path, device_id,))
+                    self.queue.put((priority + 1, self.runtime, path, device_id))
                     return
         else:
             workflow = None
@@ -636,7 +637,7 @@ class Run(AbstractBase):
         self.log("info", "STARTING", device)
         if service.type == "workflow":
             start = fetch("service", scoped_name="Start")
-            self.queue.put((1, self.runtime, f"{path}>{start.id}", device_id,))
+            self.queue.put((1, self.runtime, f"{path}>{start.id}", device_id))
             return
         start = datetime.now().replace(microsecond=0)
         skip_service = False
