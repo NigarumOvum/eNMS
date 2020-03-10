@@ -1201,7 +1201,7 @@
   max_number_of_retries: 100
   max_processes: 5
   maximum_runs: 1
-  name: '[Regression Workflow F: Workflow of Workflows] Modify Payload for Iteration'
+  name: '[Regression Workflow E: Iteration Targets] Modify Payload for Iteration'
   negative_logic: false
   notification_header: ''
   number_of_retries: 0
@@ -3881,11 +3881,11 @@
   send_notification_method: mail
   services: ['[Shared] Start', '[Shared] End', '[Regression Workflow F: Workflow of
       Workflows] Regression Workflow 5: VRF creation and deletion with Napalm', '[Regression
-      Workflow F: Workflow of Workflows] Modify Payload for Iteration', '[Regression
-      Workflow F: Workflow of Workflows] Regression Workflow F S2: Access Variables
-      from Parent Workflow', '[Regression Workflow F: Workflow of Workflows] Regression
-      Workflow F S1: Subworkflow of Workflow', '[Regression Workflow F: Workflow of
-      Workflows] Show interfaces with Netmiko', '[Shared] NAPALM: Get interfaces']
+      Workflow E: Iteration Targets] Modify Payload for Iteration', '[Regression Workflow
+      F: Workflow of Workflows] Regression Workflow F S2: Access Variables from Parent
+      Workflow', '[Regression Workflow F: Workflow of Workflows] Regression Workflow
+      F S1: Subworkflow of Workflow', '[Regression Workflow F: Workflow of Workflows]
+      Show interfaces with Netmiko', '[Shared] NAPALM: Get interfaces']
   shared: false
   skip: false
   skip_query: ''
@@ -4407,12 +4407,12 @@
   scoped_name: 'Regression Workflow E: Iteration Targets'
   send_notification: false
   send_notification_method: mail
-  services: ['[Shared] Start', '[Shared] End', '[Regression Workflow F: Workflow of
-      Workflows] Modify Payload for Iteration', '[Regression Workflow E: Iteration
-      Targets] Iteration Target Workflow - Test 2', '[Regression Workflow E: Iteration
-      Targets] Iteration Targets Workflow - Test 1', '[Regression Workflow E: Iteration
-      Targets] Iteration Target Workflow - Test 3', '[Regression Workflow E: Iteration
-      Targets] Iteration Targets Workflow - Test 4']
+  services: ['[Shared] Start', '[Shared] End', '[Regression Workflow E: Iteration
+      Targets] Modify Payload for Iteration', '[Regression Workflow E: Iteration Targets]
+      Iteration Target Workflow - Test 2', '[Regression Workflow E: Iteration Targets]
+      Iteration Targets Workflow - Test 1', '[Regression Workflow E: Iteration Targets]
+      Iteration Target Workflow - Test 3', '[Regression Workflow E: Iteration Targets]
+      Iteration Targets Workflow - Test 4']
   shared: false
   skip: false
   skip_query: ''
@@ -6205,7 +6205,7 @@
   iteration_devices_property: name
   iteration_values: ''
   iteration_variable_name: iteration_value
-  last_modified: '2020-03-10 15:53:28.509312'
+  last_modified: '2020-03-10 15:55:26.804044'
   log_level: 1
   mail_recipient: ''
   max_number_of_retries: 100
@@ -6222,7 +6222,7 @@
   pools: []
   positions:
     'Regression Workflow K: pre, post and middle Run Once services': [86, -138]
-  rest_url: http://127.0.0.1:5000/rest/get/device/{{device.name}}
+  rest_url: http://127.0.0.1:5000/rest/instance/device/{{device.name}}
   result_postprocessing: ''
   run_method: per_device
   scoped_name: Per-device Rest Call 1
@@ -6319,7 +6319,7 @@
   iteration_devices_property: name
   iteration_values: ''
   iteration_variable_name: iteration_value
-  last_modified: '2020-03-10 15:54:02.082625'
+  last_modified: '2020-03-10 15:55:31.441954'
   log_level: 1
   mail_recipient: ''
   max_number_of_retries: 100
@@ -6336,7 +6336,7 @@
   pools: []
   positions:
     'Regression Workflow K: pre, post and middle Run Once services': [419, -118]
-  rest_url: http://127.0.0.1:5000/rest/get/device/{{device.name}}
+  rest_url: http://127.0.0.1:5000/rest/instance/device/{{device.name}}
   result_postprocessing: ''
   run_method: per_device
   scoped_name: Per-device Rest Call 2
