@@ -6205,7 +6205,7 @@
   iteration_devices_property: name
   iteration_values: ''
   iteration_variable_name: iteration_value
-  last_modified: '2020-03-10 15:36:31.981099'
+  last_modified: '2020-03-10 15:53:28.509312'
   log_level: 1
   mail_recipient: ''
   max_number_of_retries: 100
@@ -6236,7 +6236,7 @@
   timeout: 15
   type: rest_call_service
   update_pools: false
-  username: ''
+  username: admin
   validation_method: none
   vendor: ''
   verify_ssl_certificate: false
@@ -6319,7 +6319,7 @@
   iteration_devices_property: name
   iteration_values: ''
   iteration_variable_name: iteration_value
-  last_modified: '2020-03-10 15:36:41.708465'
+  last_modified: '2020-03-10 15:54:02.082625'
   log_level: 1
   mail_recipient: ''
   max_number_of_retries: 100
@@ -6350,7 +6350,7 @@
   timeout: 15
   type: rest_call_service
   update_pools: false
-  username: ''
+  username: admin
   validation_method: none
   vendor: ''
   verify_ssl_certificate: false

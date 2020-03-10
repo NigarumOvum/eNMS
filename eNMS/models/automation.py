@@ -509,11 +509,11 @@ class Run(AbstractBase):
         for device in self.devices:
             self.queue.put((1, self.runtime, str(self.service_id), device.id))
         for _ in range(thread_number):
-            t = Thread(target=self.queue_worker)
-            threads.append(t)
-            t.start()
+            thread = Thread(target=self.queue_worker)
+            threads.append(thread)
+            thread.start()
         for t in threads:
-            t.join()
+            thread.join()
         result = self.run_state["progress"]["device"]
         success = result["total"] == result["success"] + result["skipped"]
         return {"success": success}
