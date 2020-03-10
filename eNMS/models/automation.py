@@ -603,6 +603,8 @@ class Run(AbstractBase):
                     pass
                 if results["success"] and service.validation_method != "none":
                     self.validate_result(results, service, device)
+                if self.negative_logic:
+                    results["success"] = not results["success"]
                 if results["success"]:
                     return results
                 elif retries:
@@ -844,8 +846,7 @@ class Run(AbstractBase):
         else:
             match = self.sub(service.dict_match, locals())
             success = service.match_dictionary(results["result"], match)
-        results["success"] = not success if service.negative_logic else success
-        results.update({"match": match, "negative_logic": service.negative_logic})
+        results.update({"match": match, "success": success})
 
     def payload_helper(
         self,
@@ -1059,8 +1060,12 @@ class Run(AbstractBase):
     def close_remaining_connections(self):
         threads = []
         for library in ("netmiko", "napalm"):
-            for connection in app.connections_cache[library][self.runtime].items():
-                thread = Thread(target=self.disconnect, args=(library, *connection))
+            devices = list(app.connections_cache[library][self.runtime])
+            for device in devices:
+                connection = app.connections_cache[library][self.runtime][device]
+                thread = Thread(
+                    target=self.disconnect, args=(library, device, connection)
+                )
                 thread.start()
                 threads.append(thread)
         for thread in threads:
