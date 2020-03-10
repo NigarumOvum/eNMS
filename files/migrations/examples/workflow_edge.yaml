@@ -559,3 +559,22 @@
     Workflow and Subworkflow Iteration] Subworkflow Iteration] Test Iteration', subtype: success,
   type: workflow_edge, workflow: '[Regression Workflow J: Workflow and Subworkflow
     Iteration] Subworkflow Iteration'}
+- {destination: '[Regression Workflow K: pre, post and middle Run Once services] Pre
+    Rest Call', label: success, source: '[Shared] Start', subtype: success, type: workflow_edge,
+  workflow: 'Regression Workflow K: pre, post and middle Run Once services'}
+- {destination: '[Regression Workflow K: pre, post and middle Run Once services] Per-device
+    Rest Call 1', label: success, source: '[Regression Workflow K: pre, post and middle
+    Run Once services] Pre Rest Call', subtype: success, type: workflow_edge, workflow: 'Regression
+    Workflow K: pre, post and middle Run Once services'}
+- {destination: '[Regression Workflow K: pre, post and middle Run Once services] Middle
+    Rest Call', label: success, source: '[Regression Workflow K: pre, post and middle
+    Run Once services] Per-device Rest Call 1', subtype: success, type: workflow_edge,
+  workflow: 'Regression Workflow K: pre, post and middle Run Once services'}
+- {destination: '[Regression Workflow K: pre, post and middle Run Once services] Per-device
+    Rest Call 2', label: success, source: '[Regression Workflow K: pre, post and middle
+    Run Once services] Middle Rest Call', subtype: success, type: workflow_edge, workflow: 'Regression
+    Workflow K: pre, post and middle Run Once services'}
+- {destination: '[Regression Workflow K: pre, post and middle Run Once services] Post
+    Rest Call', label: success, source: '[Regression Workflow K: pre, post and middle
+    Run Once services] Per-device Rest Call 2', subtype: success, type: workflow_edge,
+  workflow: 'Regression Workflow K: pre, post and middle Run Once services'}

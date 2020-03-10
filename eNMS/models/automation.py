@@ -504,31 +504,19 @@ class Run(AbstractBase):
 
     def device_run(self):
         self.devices = self.compute_devices()
-        if self.service.iteration_devices and not self.parent_device:
-            if not self.workflow:
-                return {
-                    "success": False,
-                    "result": "Device iteration not allowed outside of a workflow",
-                    "runtime": self.runtime,
-                }
-            results = [self.device_iteration(device) for device in self.devices]
-            return {"success": all(results), "runtime": self.runtime}
-        elif self.service.run_method != "per_device":
-            return self.get_results(path=str(self.service_id))
-        else:
-            threads = []
-            thread_number = min(self.service.max_processes, len(self.devices))
-            for device in self.devices:
-                self.queue.put((1, self.runtime, str(self.service_id), device.id))
-            for _ in range(thread_number):
-                t = Thread(target=self.queue_worker)
-                threads.append(t)
-                t.start()
-            for t in threads:
-                t.join()
-            result = self.run_state["progress"]["device"]
-            success = result["total"] == result["success"] + result["skipped"]
-            return {"success": success}
+        threads = []
+        thread_number = min(self.service.max_processes, len(self.devices))
+        for device in self.devices:
+            self.queue.put((1, self.runtime, str(self.service_id), device.id))
+        for _ in range(thread_number):
+            t = Thread(target=self.queue_worker)
+            threads.append(t)
+            t.start()
+        for t in threads:
+            t.join()
+        result = self.run_state["progress"]["device"]
+        success = result["total"] == result["success"] + result["skipped"]
+        return {"success": success}
 
     def create_result(self, results, service=None, device=None):
         if not service:
