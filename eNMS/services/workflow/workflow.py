@@ -102,8 +102,6 @@ class Workflow(Service):
     def tracking_bfs(self, run):
         number_of_runs = defaultdict(int)
         while services:
-            if run.stop:
-                return {"payload": payload, "success": False}
             service = services.pop()
             if number_of_runs[service.name] >= service.maximum_runs or any(
                 node not in visited

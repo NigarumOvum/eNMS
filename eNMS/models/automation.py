@@ -506,6 +506,8 @@ class Run(AbstractBase):
     def queue_worker(self):
         try:
             while True:
+                if self.stop:
+                    break
                 data = self.queue.get_nowait()
                 device = fetch("device", id=data["device"])
                 run = fetch("run", runtime=data["runtime"])
@@ -619,9 +621,10 @@ class Run(AbstractBase):
             workflow_state = self.get_state(
                 path="".join(service_path[:-1]), service=workflow
             )
-            if workflow_state["runs"][f"{path}-{service.id}"] >= service.maximum_runs:
+            index = f"{path}-{device.id}"
+            if workflow_state["runs"][index] >= service.maximum_runs:
                 return
-            workflow_state["runs"][f"{path}-{service.id}"] += 1
+            workflow_state["runs"][index] += 1
         else:
             workflow = None
         if len(service_path) > 2:
@@ -1001,7 +1004,7 @@ class Run(AbstractBase):
             return connection
         self.log("info", "Opening new NAPALM connection", device)
         username, password = self.get_credentials(service, device)
-        optional_args = self.service.optional_args
+        optional_args = service.optional_args
         if not optional_args:
             optional_args = {}
         if "secret" not in optional_args:
