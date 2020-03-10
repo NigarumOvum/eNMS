@@ -899,11 +899,11 @@ class Run(AbstractBase):
             if device:
                 query = query.filter(
                     models["result"].device.has(
-                        models["result"].name == device_name
+                        models["result"].device_name == device
                     )
                 )
             result = filter_run(query, "scoped_name") or filter_run(query, "name")
-            if not results:
+            if not result:
                 return recursive_search(run.restart_run)
             else:
                 return result[0]
