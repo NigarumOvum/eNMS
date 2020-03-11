@@ -614,20 +614,21 @@ class Run(AbstractBase):
             empty_queue = not self.queue.qsize()
             empty_blocking_queue = not self.blocking_queue.qsize()
             thread_index = int(current_thread().name) - 1
-            if main_queue_active and not empty_queue:
+            #print("tttt"*100, empty_queue, main_queue_active, empty_blocking_queue, 
+            if (
+                empty_queue
+                and not main_queue_active
+                and empty_blocking_queue
+                and not blocking_queue_active
+            ):
+                break
+            elif main_queue_active and not empty_queue:
                 job = self.queue.get_nowait()
                 self.threads["main_queue"][thread_index] = 1
             elif blocking_queue_active and not empty_blocking_queue:
                 job = self.blocking_queue.get_nowait()
                 self.threads["blocking_queue"][thread_index] = 1
             else:
-                if (
-                    empty_queue
-                    and not main_queue_active
-                    and empty_blocking_queue
-                    and not empty_blocking_queue
-                ):
-                    break
                 self.threads["main_queue"][thread_index] = 0
                 self.threads["blocking_queue"][thread_index] = 0
                 sleep(1)
