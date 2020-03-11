@@ -414,15 +414,14 @@ class Run(AbstractBase):
             )
         return list(devices)
 
-    def get_state(self, service=None, path=None):
-        if not service:
-            service = self.service
-        print(service, path, app.run_frontend[self.runtime])
+    def get_state(self, path, service):
         if self.runtime in app.run_frontend:
-            if not path:
+            if service == self.service:
                 return app.run_frontend[self.runtime]
             elif path in app.run_frontend[self.runtime]["services"]:
                 return app.run_frontend[self.runtime]["services"][path]
+        if not service:
+            service = self.service
         state = {
             "status": "Idle",
             "success": None,
@@ -451,14 +450,14 @@ class Run(AbstractBase):
                 "skipped": 0,
             }
             state["progress"]["visited"] = defaultdict(int)
-        if path:
-            app.run_frontend[self.runtime]["services"][path] = state
-        else:
+        if service == self.service:
             app.run_frontend[self.runtime] = state
+        else:
+            app.run_frontend[self.runtime]["services"][path] = state
         return state
 
     def run(self, payload):
-        self.get_state()
+        self.get_state(str(self.service.id), self.service)
         self.backend["payload"] = payload
         self.run_state["status"] = "Running"
         start = datetime.now().replace(microsecond=0)
@@ -628,7 +627,7 @@ class Run(AbstractBase):
             return
         if len(service_path) > 1:
             workflow = fetch("service", id=service_path[-2])
-            workflow_state = self.get_state(path=workflow_path, service=workflow)
+            workflow_state = self.get_state(workflow_path, workflow)
             index = (
                 f"{path}-{device_id}" if service.run_method == "per_device" else path
             )
@@ -663,7 +662,7 @@ class Run(AbstractBase):
         else:
             preworkflow = None
         print(path, service)
-        state = self.get_state(path=path, service=service)
+        state = self.get_state(path, service)
         state["progress"]["device"]["total"] += 1
         self.log("info", "STARTING", device, service)
         if service.type == "workflow":
