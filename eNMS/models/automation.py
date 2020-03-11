@@ -339,15 +339,19 @@ class Run(AbstractBase):
 
     @property
     def run_state(self):
-        return self.state or app.run_db[self.runtime]
+        return self.state or app.run_frontend[self.runtime]
 
     @property
     def edge_state(self):
-        return app.run_db[self.runtime]["edges"]
+        return app.run_frontend[self.runtime]["edges"]
 
     @property
     def backend(self):
         return app.run_backend[self.runtime]
+
+    @property
+    def frontend(self):
+        return app.run_frontend[self.runtime]
 
     @property
     def stop(self):
@@ -410,16 +414,16 @@ class Run(AbstractBase):
             )
         return list(devices)
 
-    def get_state(self, payload=None, service=None, path=None):
+    def get_state(self, service=None, path=None):
         if not service:
             service = self.service
-        if self.runtime in app.run_db:
+        print(service, path, app.run_frontend[self.runtime])
+        if self.runtime in app.run_frontend:
             if not path:
-                return app.run_db[self.runtime]
-            elif path in app.run_db[self.runtime]["services"]:
-                return app.run_db[self.runtime]["services"][path]
+                return app.run_frontend[self.runtime]
+            elif path in app.run_frontend[self.runtime]["services"]:
+                return app.run_frontend[self.runtime]["services"][path]
         state = {
-            "payload": payload,
             "status": "Idle",
             "success": None,
             "progress": {
@@ -448,13 +452,14 @@ class Run(AbstractBase):
             }
             state["progress"]["visited"] = defaultdict(int)
         if path:
-            app.run_db[self.runtime]["services"][path] = state
+            app.run_frontend[self.runtime]["services"][path] = state
         else:
-            app.run_db[self.runtime] = state
+            app.run_frontend[self.runtime] = state
         return state
 
     def run(self, payload):
-        self.get_state(payload)
+        self.get_state()
+        self.backend["payload"] = payload
         self.run_state["status"] = "Running"
         start = datetime.now().replace(microsecond=0)
         try:
@@ -480,7 +485,7 @@ class Run(AbstractBase):
             results["duration"] = self.duration = str(
                 datetime.now().replace(microsecond=0) - start
             )
-            self.state = results["state"] = app.run_db.pop(self.runtime)
+            self.state = results["state"] = app.run_frontend.pop(self.runtime)
             if self.task and not self.task.frequency:
                 self.task.is_active = False
             self.create_result(results)
@@ -883,7 +888,7 @@ class Run(AbstractBase):
         operation="set",
         allow_none=False,
     ):
-        payload = self.run_state["payload"].setdefault("variables", {})
+        payload = self.backend["payload"].setdefault("variables", {})
         if device:
             payload = payload.setdefault("devices", {})
             payload = payload.setdefault(device, {})
@@ -935,7 +940,7 @@ class Run(AbstractBase):
         return recursive_search(self)
 
     def global_variables(_self, **locals):  # noqa: N805
-        payload, device = _self.run_state["payload"], locals.get("device")
+        payload, device = _self.backend["payload"], locals.get("device")
         variables = {
             "settings": app.settings,
             "devices": _self.devices,

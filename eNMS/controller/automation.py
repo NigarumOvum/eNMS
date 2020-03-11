@@ -23,10 +23,10 @@ class AutomationController(BaseController):
     NAPALM_DRIVERS = sorted((driver, driver) for driver in SUPPORTED_DRIVERS[1:])
     connections_cache = {"napalm": defaultdict(dict), "netmiko": defaultdict(dict)}
     service_db = defaultdict(lambda: {"runs": 0})
-    run_db = defaultdict(dict)
+    run_frontend = defaultdict(dict)
     run_logs = defaultdict(lambda: defaultdict(list))
     run_backend = defaultdict(
-        lambda: {"threads": None, "queue": Queue(), "blocking_queue": Queue(),}
+        lambda: {"threads": None, "queue": Queue(), "blocking_queue": Queue()}
     )
 
     def stop_workflow(self, runtime):
@@ -397,7 +397,7 @@ class AutomationController(BaseController):
         if runs and runtime != "normal":
             if runtime == "latest":
                 runtime = runs[-1].runtime
-            state = self.run_db.get(runtime) or fetch("run", runtime=runtime).state
+            state = self.run_frontend.get(runtime) or fetch("run", runtime=runtime).state
         return {
             "service": service.to_dict(include=["services", "edges"]),
             "runtimes": sorted(set((r.runtime, r.creator) for r in runs)),
