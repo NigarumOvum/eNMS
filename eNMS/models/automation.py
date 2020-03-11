@@ -415,6 +415,7 @@ class Run(AbstractBase):
                     "device": device.id,
                 }
             )
+        return list(devices)
 
     def get_state(self, payload=None, service=None, path=None):
         if not service:
@@ -524,9 +525,7 @@ class Run(AbstractBase):
             "main_queue": [1] * self.service.max_processes,
             "blocking_queue": [1] * self.service.max_processes,
         }
-        for device in self.devices:
-
-        for i in range(1, tself.service.max_processes + 1):
+        for i in range(1, self.service.max_processes + 1):
             thread = Thread(target=self.queue_worker, name=i)
             threads.append(thread)
             thread.start()
