@@ -407,7 +407,14 @@ class Run(AbstractBase):
                 if self.service.update_pools:
                     pool.compute_pool()
                 devices |= set(pool.devices)
-        return list(devices)
+        for device in devices:
+            self.queue.put(
+                {
+                    "runtime": self.runtime,
+                    "path": str(self.service_id),
+                    "device": device.id,
+                }
+            )
 
     def get_state(self, payload=None, service=None, path=None):
         if not service:
@@ -462,12 +469,7 @@ class Run(AbstractBase):
             Session.commit()
             results = {"runtime": self.runtime, **self.device_run()}
         except Exception:
-            result = (
-                f"Running {self.service.type} '{self.service.name}'"
-                " raised the following exception:\n"
-                f"{chr(10).join(format_exc().splitlines())}\n\n"
-                "Run aborted..."
-            )
+            result = "\n".join(format_exc().splitlines())
             self.log("error", result)
             results = {"success": False, "runtime": self.runtime, "result": result}
         finally:
@@ -518,20 +520,13 @@ class Run(AbstractBase):
     def device_run(self):
         self.devices = self.compute_devices()
         threads = []
-        thread_number = min(self.service.max_processes, len(self.devices))
         self.backend["threads"] = {
-            "main_queue": [1] * thread_number,
-            "blocking_queue": [1] * thread_number,
+            "main_queue": [1] * self.service.max_processes,
+            "blocking_queue": [1] * self.service.max_processes,
         }
         for device in self.devices:
-            self.queue.put(
-                {
-                    "runtime": self.runtime,
-                    "path": str(self.service_id),
-                    "device": device.id,
-                }
-            )
-        for i in range(1, thread_number + 1):
+
+        for i in range(1, tself.service.max_processes + 1):
             thread = Thread(target=self.queue_worker, name=i)
             threads.append(thread)
             thread.start()
