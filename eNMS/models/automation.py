@@ -468,7 +468,7 @@ class Run(AbstractBase):
             app.service_db[self.service.id]["runs"] += 1
             self.service.status = "Running"
             Session.commit()
-            results = {"runtime": self.runtime, **self.device_run()}
+            results = {"runtime": self.runtime, **self.start_threads()}
         except Exception:
             result = "\n".join(format_exc().splitlines())
             self.log("error", result)
@@ -488,37 +488,13 @@ class Run(AbstractBase):
                 datetime.now().replace(microsecond=0) - start
             )
             self.state = results["state"] = app.run_db.pop(self.runtime)
-
             if self.task and not self.task.frequency:
                 self.task.is_active = False
             self.create_result(results)
             Session.commit()
         return results
 
-    def device_iteration(self, device):
-        derived_devices = self.compute_devices_from_query(
-            self.service.iteration_devices,
-            self.service.iteration_devices_property,
-            **locals(),
-        )
-        derived_run = factory(
-            "run",
-            **{
-                "service": self.service.id,
-                "devices": [derived_device.id for derived_device in derived_devices],
-                "workflow": self.workflow.id,
-                "parent_device": device.id,
-                "restart_run": self.restart_run,
-                "parent": self,
-                "runtime": self.runtime,
-            },
-        )
-        success = derived_run.run()["success"]
-        key = "success" if success else "failure"
-        self.run_state["summary"][key].append(device.name)
-        return success
-
-    def device_run(self):
+    def start_threads(self):
         self.devices = self.compute_devices()
         threads = []
         self.backend["threads"] = {
@@ -637,9 +613,23 @@ class Run(AbstractBase):
         service_path = path.split(">")
         workflow_path = "".join(service_path[:-1])
         service = fetch("service", id=service_path[-1])
-        print(service, device)
         device_id = device.id if device else None
         queue = self.blocking_queue if service.blocking else self.queue
+        if service.iteration_devices:
+            derived_devices = self.compute_devices_from_query(
+                service.iteration_devices,
+                service.iteration_devices_property,
+                **locals(),
+            )
+            for device in derived_devices:
+                queue.put(
+                    {
+                        "runtime": self.runtime,
+                        "path": path,
+                        "parent_device": device_id,
+                        "device": device
+                    }
+                )
         if len(service_path) > 1:
             workflow = fetch("service", id=service_path[-2])
             workflow_state = self.get_state(path=workflow_path, service=workflow)
