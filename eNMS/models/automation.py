@@ -293,8 +293,6 @@ class Run(AbstractBase):
         "Run", remote_side=[id], foreign_keys="Run.parent_id", back_populates="children"
     )
     children = relationship("Run", foreign_keys="Run.parent_id")
-    parent_device_id = Column(Integer, ForeignKey("device.id"))
-    parent_device = relationship("Device", foreign_keys="Run.parent_device_id")
     devices = relationship("Device", secondary=run_device_table, back_populates="runs")
     pools = relationship("Pool", secondary=run_pool_table, back_populates="runs")
     service_id = Column(Integer, ForeignKey("service.id"))
@@ -303,11 +301,6 @@ class Run(AbstractBase):
     )
     service_name = association_proxy(
         "service", "scoped_name", info={"name": "service_name"}
-    )
-    workflow_id = Column(Integer, ForeignKey("workflow.id", ondelete="cascade"))
-    workflow = relationship("Workflow", foreign_keys="Run.workflow_id")
-    workflow_name = association_proxy(
-        "workflow", "scoped_name", info={"name": "workflow_name"}
     )
     task_id = Column(Integer, ForeignKey("task.id", ondelete="SET NULL"))
     task = relationship("Task", foreign_keys="Run.task_id")
@@ -378,8 +371,8 @@ class Run(AbstractBase):
         else:
             return "N/A"
 
-    def compute_devices_from_query(self, query, property, **locals):
-        values = self.eval(query, **locals)[0]
+    def compute_devices_from_query(_self, query, property, **locals):
+        values = _self.eval(query, **locals)[0]
         devices, not_found = set(), []
         if isinstance(values, str):
             values = [values]
@@ -522,10 +515,6 @@ class Run(AbstractBase):
             "runtime": results["runtime"],
             "run_runtime": self.runtime,
         }
-        if self.workflow_id:
-            result_kw["workflow"] = self.workflow_id
-        if self.parent_device_id:
-            result_kw["parent_device"] = self.parent_device_id
         if device and service.run_method == "per_device":
             result_kw["device"] = device.id
         if not device:
@@ -605,31 +594,33 @@ class Run(AbstractBase):
                 continue
             job = queue.get_nowait()
             run = fetch("run", runtime=job["runtime"])
-            device = fetch("device", allow_none=True, id=job["device"])
-            run.get_results(job["path"], device)
+            run.get_results(**job)
             queue.task_done()
 
-    def get_results(self, path, device=None):
+    def get_results(self, **kwargs):
+        device = fetch("device", allow_none=True, id=kwargs["device"])
+        path = kwargs["path"]
         service_path = path.split(">")
         workflow_path = "".join(service_path[:-1])
         service = fetch("service", id=service_path[-1])
         device_id = device.id if device else None
         queue = self.blocking_queue if service.blocking else self.queue
-        if service.iteration_devices:
+        if service.iteration_devices and "parent_device" not in kwargs:
             derived_devices = self.compute_devices_from_query(
                 service.iteration_devices,
                 service.iteration_devices_property,
                 **locals(),
             )
-            for device in derived_devices:
+            for derived_device in derived_devices:
                 queue.put(
                     {
                         "runtime": self.runtime,
                         "path": path,
                         "parent_device": device_id,
-                        "device": device
+                        "device": derived_device.id
                     }
                 )
+            return
         if len(service_path) > 1:
             workflow = fetch("service", id=service_path[-2])
             workflow_state = self.get_state(path=workflow_path, service=workflow)
@@ -666,6 +657,7 @@ class Run(AbstractBase):
             preworkflow = fetch("service", id=service_path[-3])
         else:
             preworkflow = None
+        print(path, service)
         state = self.get_state(path=path, service=service)
         state["progress"]["device"]["total"] += 1
         self.log("info", "STARTING", device, service)
@@ -950,9 +942,9 @@ class Run(AbstractBase):
             "get_var": partial(_self.get_var),
             "get_result": _self.get_result,
             "log": _self.log,
-            "workflow": _self.workflow,
+            "workflow": locals.get("workflow"),
             "set_var": partial(_self.payload_helper),
-            "parent_device": _self.parent_device or device,
+            "parent_device": locals.get("parent_workflow"),
             **locals,
         }
         if "variables" not in payload:
