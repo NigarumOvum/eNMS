@@ -614,7 +614,7 @@ class Run(AbstractBase):
             blocking_queue_active = any(self.threads["blocking_queue"])
             empty_queue = not self.queue.qsize()
             empty_blocking_queue = not self.blocking_queue.qsize()
-            thread_index = int(current_thread().name) - 1 
+            thread_index = int(current_thread().name) - 1
             if (
                 empty_queue
                 and not main_queue_active
@@ -622,10 +622,10 @@ class Run(AbstractBase):
                 and not blocking_queue_active
             ):
                 break
-            elif main_queue_active and not empty_queue:
+            elif not blocking_queue_active and not empty_queue:
                 queue = self.queue
                 self.threads["main_queue"][thread_index] = 1
-            elif blocking_queue_active and not empty_blocking_queue:
+            elif not main_queue_active and not empty_blocking_queue:
                 queue = self.blocking_queue
                 self.threads["blocking_queue"][thread_index] = 1
             else:
@@ -643,6 +643,7 @@ class Run(AbstractBase):
         service_path = path.split(">")
         workflow_path = "".join(service_path[:-1])
         service = fetch("service", id=service_path[-1])
+        print(service, device)
         device_id = device.id if device else None
         queue = self.blocking_queue if service.blocking else self.queue
         if len(service_path) > 1:
