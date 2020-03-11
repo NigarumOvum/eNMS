@@ -19,7 +19,7 @@ from slackclient import SlackClient
 from sqlalchemy import Boolean, ForeignKey, Integer
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
-from threading import Thread
+from threading import current_thread, Thread
 from time import sleep
 from traceback import format_exc
 from xmltodict import parse
@@ -348,8 +348,16 @@ class Run(AbstractBase):
         return app.run_db[self.runtime]["edges"]
 
     @property
+    def backend(self):
+        return app.run_backend[self.runtime]
+
+    @property
     def stop(self):
         return self.run_state["status"] == "stop"
+
+    @property
+    def threads(self):
+        return app.run_backend[self.runtime]["threads"]
 
     @property
     def progress(self):
@@ -506,10 +514,11 @@ class Run(AbstractBase):
         self.devices = self.compute_devices()
         threads = []
         thread_number = min(self.service.max_processes, len(self.devices))
+        self.backend["threads"] = [1] * thread_number
         for device in self.devices:
             self.queue.put((1, self.runtime, str(self.service_id), device.id))
-        for _ in range(thread_number):
-            thread = Thread(target=self.queue_worker)
+        for i in range(1, thread_number + 1):
+            thread = Thread(target=self.queue_worker, name=i)
             threads.append(thread)
             thread.start()
         for thread in threads:
@@ -584,17 +593,20 @@ class Run(AbstractBase):
         return results
 
     def queue_worker(self):
-        try:
-            while True:
+        while any(self.threads):
+            thread_index = int(current_thread().name) - 1
+            try:
                 if self.stop:
                     break
                 priority, runtime, path, device = self.queue.get_nowait()
+                self.threads[thread_index] = 1
                 run = fetch("run", runtime=runtime)
                 device = fetch("device", allow_none=True, id=device)
                 run.get_results(priority, path, device)
                 self.queue.task_done()
-        except Empty:
-            pass
+            except Empty:
+                self.threads[thread_index] = 0
+                pass
 
     def get_results(self, priority, path, device=None):
         service_path = path.split(">")

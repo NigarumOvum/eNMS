@@ -26,6 +26,9 @@ class AutomationController(BaseController):
     run_db = defaultdict(dict)
     run_logs = defaultdict(lambda: defaultdict(list))
     run_queue = defaultdict(PriorityQueue)
+    run_backend = defaultdict(lambda: {
+        "threads": None
+    })
 
     def stop_workflow(self, runtime):
         run = fetch("run", allow_none=True, runtime=runtime)
