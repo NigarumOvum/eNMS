@@ -326,7 +326,11 @@ class Run(AbstractBase):
 
     @property
     def queue(self):
-        return app.run_queue[self.runtime]
+        return self.backend["queue"]
+
+    @property
+    def queue(self):
+        return self.backend["blocking_queue"]
 
     def __repr__(self):
         return f"{self.runtime}: SERVICE '{self.service}' run by USER '{self.creator}'"
@@ -514,9 +518,16 @@ class Run(AbstractBase):
         self.devices = self.compute_devices()
         threads = []
         thread_number = min(self.service.max_processes, len(self.devices))
-        self.backend["threads"] = [1] * thread_number
+        self.backend["threads"] = {
+            "main_queue": [1] * thread_number,
+            "blocking_queue": [1] * thread_number,
+        }
         for device in self.devices:
-            self.queue.put((1, self.runtime, str(self.service_id), device.id))
+            self.queue.put({
+                "runtime": self.runtime,
+                "path": str(self.service_id),
+                "device": device.id
+            })
         for i in range(1, thread_number + 1):
             thread = Thread(target=self.queue_worker, name=i)
             threads.append(thread)
@@ -593,22 +604,29 @@ class Run(AbstractBase):
         return results
 
     def queue_worker(self):
-        while any(self.threads):
+        while True:
+            if self.stop:
+                break
+            main_queue_active = any(self.threads["main_queue"])
+            blocking_queue_active = any(self.threads["blocking_queue"])
             thread_index = int(current_thread().name) - 1
-            try:
-                if self.stop:
-                    break
-                priority, runtime, path, device = self.queue.get_nowait()
-                self.threads[thread_index] = 1
-                run = fetch("run", runtime=runtime)
-                device = fetch("device", allow_none=True, id=device)
-                run.get_results(priority, path, device)
-                self.queue.task_done()
-            except Empty:
-                self.threads[thread_index] = 0
-                pass
+            if self.queue.qsize() and not blocking_queue_active:
+                job = self.queue.get_nowait()
+                self.threads[thread_index]["main_queue"] = 1
+            elif self.blocking_queue.qsize() and not main_queue_active:
+                job = self.blocking_queue.get_nowait()
+                self.threads[thread_index]["blocking_queue"] = 1
+            else:
+                self.threads[thread_index]["main_queue"] = 0
+                self.threads[thread_index]["blocking_queue"] = 0
+                sleep(1)
+                continue
+            run = fetch("run", runtime=job["runtime"])
+            device = fetch("device", allow_none=True, id=job["device"])
+            run.get_results(job["path"], device)
+            self.queue.task_done()
 
-    def get_results(self, priority, path, device=None):
+    def get_results(self, path, device=None):
         service_path = path.split(">")
         workflow_path = "".join(service_path[:-1])
         service = fetch("service", id=service_path[-1])
@@ -621,15 +639,22 @@ class Run(AbstractBase):
                 if service.run_method == "once":
                     for neighbor, edge in service.neighbors(workflow, "destination", "success"):
                         self.edge_state[edge.id] += 1
-                        self.queue.put(
-                            (1, self.runtime, f"{workflow_path}>{neighbor.id}", device_id)
-                        )
+                        self.queue.put({
+                            "runtime": self.runtime,
+                            "path": f"{workflow_path}>{neighbor.id}",
+                            "device": device_id
+                        })
                 return
             workflow_state["runs"][index] += 1
             for neighbor, _ in service.neighbors(workflow, "source", "prerequisite"):
                 neighbor_index = f"{workflow_path}>{neighbor.id}-{device_id}"
                 if neighbor_index not in workflow_state["runs"]:
-                    self.queue.put((priority + 1, self.runtime, path, device_id))
+                    #sleep(1)
+                    self.queue.put({
+                        "runtime": self.runtime,
+                        "path": path,
+                        "device": device_id
+                    })
                     return
         else:
             workflow = None
@@ -642,7 +667,11 @@ class Run(AbstractBase):
         self.log("info", "STARTING", device, service)
         if service.type == "workflow":
             start = fetch("service", scoped_name="Start")
-            self.queue.put((1, self.runtime, f"{path}>{start.id}", device_id))
+            self.queue.put({
+                "runtime": self.runtime,
+                "path": f"{path}>{start.id}",
+                "device": device_id
+            })
             return
         start = datetime.now().replace(microsecond=0)
         skip_service = False
@@ -701,7 +730,11 @@ class Run(AbstractBase):
                 preworkflow, "destination", "success"
             ):
                 self.edge_state[edge.id] += 1
-                self.queue.put((1, self.runtime, f"{workflow_path}>{neighbor.id}", device_id))
+                self.queue.put({
+                    "runtime": self.runtime,
+                    "path": f"{workflow_path}>{neighbor.id}",
+                    "device": device_id
+                })
         elif workflow and service.type != "workflow":
             neighbors = list(service.neighbors(workflow, "destination", status))
             if not neighbors:
@@ -711,9 +744,11 @@ class Run(AbstractBase):
                 for neighbor, edge in neighbors:
                     self.edge_state[edge.id] += 1
                     prepath = ">".join(service_path[:-1])
-                    self.queue.put(
-                        (1, self.runtime, f"{prepath}>{neighbor.id}", device_id)
-                    )
+                    self.queue.put({
+                        "runtime": self.runtime,
+                        "path": f"{prepath}>{neighbor.id}",
+                        "device": device_id
+                    })
         self.log("info", "FINISHED", device, service)
         if service.send_notification:
             results = service.notify(results)

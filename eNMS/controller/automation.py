@@ -7,7 +7,7 @@ from napalm._SUPPORTED_DRIVERS import SUPPORTED_DRIVERS
 from netmiko.ssh_dispatcher import CLASS_MAPPER, FILE_TRANSFER_MAP
 from operator import itemgetter
 from pathlib import Path
-from queue import PriorityQueue
+from queue import Queue
 from re import search, sub
 from uuid import uuid4
 
@@ -25,9 +25,10 @@ class AutomationController(BaseController):
     service_db = defaultdict(lambda: {"runs": 0})
     run_db = defaultdict(dict)
     run_logs = defaultdict(lambda: defaultdict(list))
-    run_queue = defaultdict(PriorityQueue)
     run_backend = defaultdict(lambda: {
-        "threads": None
+        "threads": None,
+        "queue": Queue(),
+        "blocking_queue": Queue(),
     })
 
     def stop_workflow(self, runtime):
