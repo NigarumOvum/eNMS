@@ -107,6 +107,7 @@ class ServiceForm(BaseForm):
     dict_match = DictField("Dictionary to Match Against", substitution=True)
     negative_logic = BooleanField("Negative logic")
     delete_spaces_before_matching = BooleanField("Delete Spaces before Matching")
+    blocking = BooleanField("Blocking")
     run_method = SelectField(
         "Run Method",
         choices=(

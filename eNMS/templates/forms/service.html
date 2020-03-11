@@ -205,6 +205,18 @@
                 <fieldset>
                   <div class="item">
                     <input
+                      id="{{ form_type }}-blocking"
+                      name="blocking"
+                      class="add-id"
+                      type="checkbox"
+                      value="y"
+                    />
+                    <label>Blocking (will not start until all preceding non-blocking services have run)</label>
+                  </div>
+                </fieldset>
+                <fieldset>
+                  <div class="item">
+                    <input
                       id="{{ form_type }}-skip"
                       name="skip"
                       class="readonly-when-run add-id"
