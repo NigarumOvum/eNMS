@@ -111,6 +111,7 @@ class Service(AbstractBase):
     negative_logic = Column(Boolean, default=False)
     delete_spaces_before_matching = Column(Boolean, default=False)
     run_method = Column(SmallString, default="per_device")
+    blocking = Column(Boolean, default=False)
     status = Column(SmallString, default="Idle")
 
     def __init__(self, **kwargs):
@@ -613,8 +614,7 @@ class Run(AbstractBase):
             blocking_queue_active = any(self.threads["blocking_queue"])
             empty_queue = not self.queue.qsize()
             empty_blocking_queue = not self.blocking_queue.qsize()
-            thread_index = int(current_thread().name) - 1
-            #print("tttt"*100, empty_queue, main_queue_active, empty_blocking_queue, 
+            thread_index = int(current_thread().name) - 1 
             if (
                 empty_queue
                 and not main_queue_active
@@ -623,26 +623,28 @@ class Run(AbstractBase):
             ):
                 break
             elif main_queue_active and not empty_queue:
-                job = self.queue.get_nowait()
+                queue = self.queue
                 self.threads["main_queue"][thread_index] = 1
             elif blocking_queue_active and not empty_blocking_queue:
-                job = self.blocking_queue.get_nowait()
+                queue = self.blocking_queue
                 self.threads["blocking_queue"][thread_index] = 1
             else:
                 self.threads["main_queue"][thread_index] = 0
                 self.threads["blocking_queue"][thread_index] = 0
                 sleep(1)
                 continue
+            job = queue.get_nowait()
             run = fetch("run", runtime=job["runtime"])
             device = fetch("device", allow_none=True, id=job["device"])
             run.get_results(job["path"], device)
-            self.queue.task_done()
+            queue.task_done()
 
     def get_results(self, path, device=None):
         service_path = path.split(">")
         workflow_path = "".join(service_path[:-1])
         service = fetch("service", id=service_path[-1])
         device_id = device.id if device else None
+        queue = self.blocking_queue if service.blocking else self.queue
         if len(service_path) > 1:
             workflow = fetch("service", id=service_path[-2])
             workflow_state = self.get_state(path=workflow_path, service=workflow)
@@ -655,7 +657,8 @@ class Run(AbstractBase):
                         workflow, "destination", "success"
                     ):
                         self.edge_state[edge.id] += 1
-                        self.queue.put(
+                        neighbor_queue = self.blocking_queue if neighbor.blocking else self.queue
+                        neighbor_queue.put(
                             {
                                 "runtime": self.runtime,
                                 "path": f"{workflow_path}>{neighbor.id}",
@@ -667,8 +670,8 @@ class Run(AbstractBase):
             for neighbor, _ in service.neighbors(workflow, "source", "prerequisite"):
                 neighbor_index = f"{workflow_path}>{neighbor.id}-{device_id}"
                 if neighbor_index not in workflow_state["runs"]:
-                    # sleep(1)
-                    self.queue.put(
+                    sleep(1)
+                    queue.put(
                         {"runtime": self.runtime, "path": path, "device": device_id}
                     )
                     return
@@ -683,7 +686,7 @@ class Run(AbstractBase):
         self.log("info", "STARTING", device, service)
         if service.type == "workflow":
             start = fetch("service", scoped_name="Start")
-            self.queue.put(
+            queue.put(
                 {
                     "runtime": self.runtime,
                     "path": f"{path}>{start.id}",
@@ -748,7 +751,8 @@ class Run(AbstractBase):
                 preworkflow, "destination", "success"
             ):
                 self.edge_state[edge.id] += 1
-                self.queue.put(
+                neighbor_queue = self.blocking_queue if neighbor.blocking else self.queue
+                neighbor_queue.put(
                     {
                         "runtime": self.runtime,
                         "path": f"{workflow_path}>{neighbor.id}",
@@ -764,7 +768,8 @@ class Run(AbstractBase):
                 for neighbor, edge in neighbors:
                     self.edge_state[edge.id] += 1
                     prepath = ">".join(service_path[:-1])
-                    self.queue.put(
+                    neighbor_queue = self.blocking_queue if neighbor.blocking else self.queue
+                    neighbor_queue.put(
                         {
                             "runtime": self.runtime,
                             "path": f"{prepath}>{neighbor.id}",
