@@ -23,7 +23,7 @@ class PythonSnippetService(Service):
         try:
             code_object = compile(self.source_code, "user_python_code", "exec")
         except Exception as exc:
-            run.log("info", f"Compile error: {str(exc)}")
+            run.log("info", f"Compile error: {str(exc)}", self)
             return {"success": False, "result": {"step": "compile", "error": str(exc)}}
         results = {}
 
@@ -45,14 +45,14 @@ class PythonSnippetService(Service):
             pass
         except Exception as exc:
             lineno = traceback.extract_tb(exc.__traceback__)[-1][1]
-            run.log("info", f"Execution error(line {lineno}): {str(exc)}")
+            run.log("info", f"Execution error(line {lineno}): {str(exc)}", self)
             return {
                 "success": False,
                 "result": {"step": "execute", "error": str(exc), "result": results},
             }
 
         if not results:
-            run.log("info", "Error: Result not set by user code on service instance")
+            run.log("info", "Error: Result not set by user code on service instance", self)
             results = {
                 "success": False,
                 "result": {"error": "Result not set by user code on service instance"},

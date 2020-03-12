@@ -472,6 +472,7 @@ class Run(AbstractBase):
             results = {"success": False, "runtime": self.runtime, "result": result}
         finally:
             self.close_remaining_connections()
+            
             Session.commit()
             results["summary"] = self.run_state.get("summary", None)
             self.status = "Aborted" if self.stop else "Completed"
@@ -487,7 +488,7 @@ class Run(AbstractBase):
             self.state = results["state"] = app.run_frontend.pop(self.runtime)
             if self.task and not self.task.frequency:
                 self.task.is_active = False
-            self.create_result(results)
+            self.create_result(results, self.service)
             Session.commit()
         return results
 
@@ -508,10 +509,7 @@ class Run(AbstractBase):
         success = result["total"] == result["success"] + result["skipped"]
         return {"success": success}
 
-    def create_result(self, results, service=None, device=None):
-        if not service:
-            service = self.service
-        self.success = results["success"]
+    def create_result(self, results, service, device=None):
         result_kw = {
             "run": self,
             "result": results,
@@ -661,7 +659,6 @@ class Run(AbstractBase):
             preworkflow = fetch("service", id=service_path[-3])
         else:
             preworkflow = None
-        print(path, service)
         state = self.get_state(path, service)
         state["progress"]["device"]["total"] += 1
         self.log("info", "STARTING", device, service)

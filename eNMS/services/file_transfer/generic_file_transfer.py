@@ -66,6 +66,7 @@ class GenericFileTransferService(Service):
                                 f"{glob_source} to {destination}"
                             ),
                             device,
+                            self
                         )
                         continue
                     path, filename = split(glob_source)
@@ -80,6 +81,7 @@ class GenericFileTransferService(Service):
                         f"{glob_source_file_list} to {destination}"
                     ),
                     device,
+                    self
                 )
                 self.transfer_file(ssh_client, pairs)
         elif not Path(source).is_file():
