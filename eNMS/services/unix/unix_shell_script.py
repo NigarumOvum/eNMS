@@ -35,7 +35,7 @@ class UnixShellScriptService(Service):
 
     __mapper_args__ = {"polymorphic_identity": "unix_shell_script_service"}
 
-    def job(self, run, device):
+    def job(self, run, device, **kwargs):
         netmiko_connection = run.netmiko_connection(self, device)
         source_code = run.sub(self.source_code, locals())
         script_file_name = f"{self.name}.sh"

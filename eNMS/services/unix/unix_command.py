@@ -16,7 +16,7 @@ class UnixCommandService(Service):
 
     __mapper_args__ = {"polymorphic_identity": "unix_command_service"}
 
-    def job(self, run, device):
+    def job(self, run, device, **kwargs):
         command = run.sub(self.command, locals())
         run.log("info", f"Running UNIX command: {command}", device, self)
         return {"command": command, "result": check_output(command.split()).decode()}

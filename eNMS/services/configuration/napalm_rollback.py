@@ -19,7 +19,7 @@ class NapalmRollbackService(ConnectionService):
 
     __mapper_args__ = {"polymorphic_identity": "napalm_rollback_service"}
 
-    def job(self, run, device):
+    def job(self, run, device, **kwargs):
         napalm_connection = run.napalm_connection(self, device)
         run.log("info", "Configuration Rollback with NAPALM", device, self)
         napalm_connection.rollback()

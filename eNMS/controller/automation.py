@@ -288,6 +288,7 @@ class AutomationController(BaseController):
                 all_matches=True,
                 service_id=service.id,
             )
+            print(len(results))
             if service.scoped_name in ("Start", "End") or not results:
                 return
             progress = state["services"][service.id].get("progress")

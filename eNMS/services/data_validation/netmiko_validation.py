@@ -30,7 +30,7 @@ class NetmikoValidationService(ConnectionService):
 
     __mapper_args__ = {"polymorphic_identity": "netmiko_validation_service"}
 
-    def job(self, run, device):
+    def job(self, run, device, **kwargs):
         netmiko_connection = run.netmiko_connection(self, device)
         command = run.sub(self.command, locals())
         run.log("info", f"Sending '{command}' with Netmiko", device, self)

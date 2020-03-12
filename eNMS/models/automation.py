@@ -549,10 +549,14 @@ class Run(AbstractBase):
                     targets = dict(zip(map(str, targets), targets))
                 for target_name, target_value in targets.items():
                     run[target_name] = target_value
-        return all(self.run_service(**run) for run in runs)
+        success = all(self.run_service(**run) for run in runs)
+        print("success"*100, service, success)
+        return success
 
     def run_service(self, **kwargs):
         device, service = kwargs["device"], kwargs["service"]
+        print("oooo"*200, device, service)
+        results = {"runtime": app.get_time()}
         retries, total_retries = service.number_of_retries + 1, 0
         while retries and total_retries < service.max_number_of_retries:
             retries -= 1
@@ -561,7 +565,7 @@ class Run(AbstractBase):
                 if service.number_of_retries - retries:
                     retry = service.number_of_retries - retries
                     self.log("error", f"RETRY n°{retry}", device)
-                results = service.job(self, **kwargs)
+                results.update(service.job(self, **kwargs))
                 if device and getattr(self, "close_connection", False):
                     self.close_device_connection(device.name)
                 service.convert_result(results)
@@ -580,7 +584,7 @@ class Run(AbstractBase):
                 if service.negative_logic:
                     results["success"] = not results["success"]
                 if results["success"]:
-                    return results
+                    break
                 elif retries:
                     sleep(service.time_between_retries)
             except Exception as exc:
@@ -588,6 +592,7 @@ class Run(AbstractBase):
                 result = chr(10).join(format_exc().splitlines())
                 results = {"success": False, "result": result}
         self.create_result(results, **kwargs)
+        return results["success"]
 
     def queue_worker(self):
         while True:
@@ -699,7 +704,7 @@ class Run(AbstractBase):
             "service": service.scoped_name,
         }
         try:
-            self.iterate_service(device, service, **kwargs)
+            results["success"] = self.iterate_service(device, service, **kwargs)
         except Exception:
             results.update(
                 {"success": False, "result": chr(10).join(format_exc().splitlines())}
