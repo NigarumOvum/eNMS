@@ -586,7 +586,7 @@ class Run(AbstractBase):
                     sleep(service.time_between_retries)
             except Exception as exc:
                 self.log("error", str(exc), device)
-                result = chr(10).join(format_exc().splitlines())
+                result = "\n".join(format_exc().splitlines())
                 results.update({"success": False, "result": result})
         self.create_result(results, **kwargs)
         return results["success"]
@@ -703,10 +703,9 @@ class Run(AbstractBase):
         try:
             results["success"] = self.iterate_service(device, service, **kwargs)
         except Exception:
-            results.update(
-                {"success": False, "result": chr(10).join(format_exc().splitlines())}
-            )
-            self.log("error", chr(10).join(format_exc().splitlines()), device, service)
+            result = "\n".join(format_exc().splitlines())
+            results.update({"success": False, "result": result})
+            self.log("error", result, device, service)
         results["duration"] = str(datetime.now().replace(microsecond=0) - start)
         status = "success" if results["success"] else "failure"
         if device:
