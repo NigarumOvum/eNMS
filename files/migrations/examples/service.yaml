@@ -3484,7 +3484,7 @@
   positions:
     'Regression Workflow F S1: Subworkflow of Workflow': [200, -205]
   result_postprocessing: ''
-  run_method: per_service_with_workflow_targets
+  run_method: per_device
   scoped_name: 'Regression Workflow 9: Operational Data Backup'
   send_notification: false
   send_notification_method: mail
@@ -4068,7 +4068,7 @@
   pools: []
   positions: {}
   result_postprocessing: ''
-  run_method: per_service_with_workflow_targets
+  run_method: per_device
   scoped_name: 'Regression Workflow A: get_var, set_var, get_result'
   send_notification: false
   send_notification_method: mail
@@ -4648,7 +4648,7 @@
   pools: []
   positions: {}
   result_postprocessing: ''
-  run_method: per_service_with_service_targets
+  run_method: once
   scoped_name: 'Regression Workflow 1: Netmiko with validation and retries'
   send_notification: false
   send_notification_method: mail
@@ -5066,7 +5066,7 @@
   positions:
     'Regression Workflow G: run methods (BFS)': [123, -96]
   result_postprocessing: ''
-  run_method: per_service_with_workflow_targets
+  run_method: per_device
   scoped_name: Workflow in service by service mode (workflow targets)
   send_notification: false
   send_notification_method: mail
@@ -5176,7 +5176,7 @@
   positions:
     'Regression Workflow G: run methods (BFS)': [622, -89]
   result_postprocessing: ''
-  run_method: per_service_with_service_targets
+  run_method: once
   scoped_name: Workflow in service targets mode
   send_notification: false
   send_notification_method: mail
@@ -5453,7 +5453,7 @@
   pools: []
   positions: {}
   result_postprocessing: ''
-  run_method: per_service_with_workflow_targets
+  run_method: per_device
   scoped_name: 'Regression Workflow H: shared service in multiple subworkflows'
   send_notification: false
   send_notification_method: mail
@@ -5507,7 +5507,7 @@
   positions:
     'Regression Workflow H: shared service in multiple subworkflows': [-241, 197]
   result_postprocessing: ''
-  run_method: per_service_with_workflow_targets
+  run_method: per_device
   scoped_name: Subworkflow 1
   send_notification: false
   send_notification_method: mail
@@ -5560,7 +5560,7 @@
   positions:
     'Regression Workflow H: shared service in multiple subworkflows': [548, 48]
   result_postprocessing: ''
-  run_method: per_service_with_workflow_targets
+  run_method: per_device
   scoped_name: Subworkflow 2
   send_notification: false
   send_notification_method: mail

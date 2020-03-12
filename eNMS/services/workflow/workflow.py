@@ -106,15 +106,8 @@ class WorkflowForm(ServiceForm):
     run_method = SelectField(
         "Run Method",
         choices=(
-            ("per_device", "Run the workflow device by device"),
-            (
-                "per_service_with_workflow_targets",
-                "Run the workflow service by service using workflow targets",
-            ),
-            (
-                "per_service_with_service_targets",
-                "Run the workflow service by service using service targets",
-            ),
+            ("per_device", "Run the workflow device by device using workflow targets"),
+            ("once", "Run the workflow service by service using service targets",),
         ),
     )
 

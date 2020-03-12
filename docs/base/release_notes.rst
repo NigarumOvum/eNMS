@@ -39,6 +39,12 @@ MIGRATION:
 In pools, "never_update" -> "manually_defined"
 Remove ALL payload validation service, no longer needed.
 
+There are only two run methods for a workflow now: "per_service" and "per_device"
+run_method:
+"per_device" -> "per_device"
+"per_service_with_workflow_targets" -> "per_device"
+"per_service_with_service_targets" -> "once"
+
 CUSTOM SERVICES FILE MIGRATION:
 Fields are no longer imported from wtforms. All of them are now imported from eNMS.forms.fields
 Some of them have been removed:

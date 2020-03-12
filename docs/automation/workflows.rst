@@ -45,18 +45,10 @@ Device by device
 ****************
 
   - Uses the devices configured at **workflow** level.
-  - Workflow will run for each device independently, one at a time if multiprocessig is disabled
-    in parallel otherwise.
+  - Workflow will run for each device independently
 
-Service by service using workflow targets
-*****************************************
-
-  - Uses the devices configured at **workflow** level.
-  - The workflow will run one service at a time, but each device can follow a different path depending on
-    the results of each service for that device.
-
-Service by service using service targets
-****************************************
+Service by service
+******************
 
   - Uses the devices configured at **service** level.
   - The workflow will run one service at a time. A service is considered successful if it ran successfully
