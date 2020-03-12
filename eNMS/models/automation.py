@@ -472,7 +472,6 @@ class Run(AbstractBase):
             results = {"success": False, "runtime": self.runtime, "result": result}
         finally:
             self.close_remaining_connections()
-
             Session.commit()
             results["summary"] = self.run_state.get("summary", None)
             self.status = "Aborted" if self.stop else "Completed"
@@ -488,7 +487,7 @@ class Run(AbstractBase):
             self.state = results["state"] = app.run_frontend.pop(self.runtime)
             if self.task and not self.task.frequency:
                 self.task.is_active = False
-            self.create_result(results, self.service)
+            self.create_result(results)
             Session.commit()
         return results
 
@@ -509,7 +508,9 @@ class Run(AbstractBase):
         success = result["total"] == result["success"] + result["skipped"]
         return {"success": success}
 
-    def create_result(self, results, service, device=None):
+    def create_result(self, results, service=None, device=None):
+        if not service:
+            service = self.service
         result_kw = {
             "run": self,
             "result": results,
@@ -529,8 +530,29 @@ class Run(AbstractBase):
                 )
         factory("result", **result_kw)
 
-    def run_service(self, device, service):
-        args = (device,) if device else ()
+    def iterate_service(self, device, service, **kwargs):
+        if service.iteration_devices:
+            runs = [
+                {"parent_device": device, "device": derived_device, "service": service}
+                for derived_device in self.compute_devices_from_query(
+                    service.iteration_devices,
+                    service.iteration_devices_property,
+                    **locals(),
+                )
+            ]
+        else:
+            runs = [{"device": device, "service": service}]
+        if service.iteration_values:
+            for run in runs:
+                targets = self.eval(service.iteration_values, {**locals(), **run})[0]
+                if not isinstance(targets, dict):
+                    targets = dict(zip(map(str, targets), targets))
+                for target_name, target_value in targets.items():
+                    run[target_name] = target_value
+        return all(self.run_service(**run) for run in runs)
+
+    def run_service(self, **kwargs):
+        device, service = kwargs["device"], kwargs["service"]
         retries, total_retries = service.number_of_retries + 1, 0
         while retries and total_retries < service.max_number_of_retries:
             retries -= 1
@@ -539,7 +561,7 @@ class Run(AbstractBase):
                 if service.number_of_retries - retries:
                     retry = service.number_of_retries - retries
                     self.log("error", f"RETRY n°{retry}", device)
-                results = service.job(self, *args)
+                results = service.job(self, **kwargs)
                 if device and getattr(self, "close_connection", False):
                     self.close_device_connection(device.name)
                 service.convert_result(results)
@@ -565,7 +587,7 @@ class Run(AbstractBase):
                 self.log("error", str(exc), device)
                 result = chr(10).join(format_exc().splitlines())
                 results = {"success": False, "result": result}
-        return results
+        self.create_result(results, **kwargs)
 
     def queue_worker(self):
         while True:
@@ -600,29 +622,13 @@ class Run(AbstractBase):
             queue.task_done()
 
     def get_results(self, **kwargs):
-        device = fetch("device", allow_none=True, id=kwargs["device"])
-        path = kwargs["path"]
+        device = fetch("device", allow_none=True, id=kwargs.pop("device"))
+        path = kwargs.pop("path")
         service_path = path.split(">")
         workflow_path = "".join(service_path[:-1])
         service = fetch("service", id=service_path[-1])
         device_id = device.id if device else None
         queue = self.blocking_queue if service.blocking else self.queue
-        if service.iteration_devices and "parent_device" not in kwargs:
-            derived_devices = self.compute_devices_from_query(
-                service.iteration_devices,
-                service.iteration_devices_property,
-                **locals(),
-            )
-            for derived_device in derived_devices:
-                queue.put(
-                    {
-                        "runtime": self.runtime,
-                        "path": path,
-                        "parent_device": device_id,
-                        "device": derived_device.id,
-                    }
-                )
-            return
         if len(service_path) > 1:
             workflow = fetch("service", id=service_path[-2])
             workflow_state = self.get_state(workflow_path, workflow)
@@ -693,26 +699,7 @@ class Run(AbstractBase):
             "service": service.scoped_name,
         }
         try:
-            if service.iteration_values:
-                targets_results = {}
-                targets = self.eval(service.iteration_values, **locals())[0]
-                if not isinstance(targets, dict):
-                    targets = dict(zip(map(str, targets), targets))
-                for target_name, target_value in targets.items():
-                    self.payload_helper(
-                        self.iteration_variable_name,
-                        target_value,
-                        device=getattr(device, "name", None),
-                    )
-                    targets_results[target_name] = self.run_service(device, service)
-                results.update(
-                    {
-                        "result": targets_results,
-                        "success": all(r["success"] for r in targets_results.values()),
-                    }
-                )
-            else:
-                results.update(self.run_service(device, service))
+            self.iterate_service(device, service, **kwargs)
         except Exception:
             results.update(
                 {"success": False, "result": chr(10).join(format_exc().splitlines())}
@@ -723,7 +710,6 @@ class Run(AbstractBase):
         if device:
             state["progress"]["device"][status] += 1
             state["summary"][status].append(device.name)
-        self.create_result(results, service, device)
         if service.scoped_name == "End" and preworkflow:
             self.create_result(results, workflow, device)
             workflow_state["progress"]["device"]["success"] += 1
