@@ -57,7 +57,7 @@ class AnsiblePlaybookService(Service):
         full_command = " ".join(command + arguments)
         if password:
             full_command = full_command.replace(password, "*" * 10)
-        run.log("info", f"Sending Ansible playbook: {full_command}", device)
+        run.log("info", f"Sending Ansible playbook: {full_command}", device, self)
         try:
             result = check_output(
                 command + arguments, cwd=app.path / "files" / "playbooks"

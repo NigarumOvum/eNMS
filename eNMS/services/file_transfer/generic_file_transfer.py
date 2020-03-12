@@ -66,7 +66,7 @@ class GenericFileTransferService(Service):
                                 f"{glob_source} to {destination}"
                             ),
                             device,
-                            self
+                            self,
                         )
                         continue
                     path, filename = split(glob_source)
@@ -81,7 +81,7 @@ class GenericFileTransferService(Service):
                         f"{glob_source_file_list} to {destination}"
                     ),
                     device,
-                    self
+                    self,
                 )
                 self.transfer_file(ssh_client, pairs)
         elif not Path(source).is_file():
@@ -91,7 +91,9 @@ class GenericFileTransferService(Service):
                 " or you forgot to enable globbing"
             )
         else:
-            run.log("info", f"Transferring file {source} to {destination}", device)
+            run.log(
+                "info", f"Transferring file {source} to {destination}", device, self
+            )
             self.transfer_file(ssh_client, [(source, destination)])
         ssh_client.close()
         return {"success": success, "result": result}

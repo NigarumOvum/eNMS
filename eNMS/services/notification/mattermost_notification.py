@@ -24,7 +24,7 @@ class MattermostNotificationService(Service):
         channel = (
             run.sub(self.channel, locals()) or app.settings["mattermost"]["channel"]
         )
-        run.log("info", f"Sending MATTERMOST notification on {channel}", device)
+        run.log("info", f"Sending MATTERMOST notification on {channel}", device, self)
         result = post(
             app.settings["mattermost"]["url"],
             verify=app.settings["mattermost"]["verify_certificate"],

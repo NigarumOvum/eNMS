@@ -397,7 +397,9 @@ class AutomationController(BaseController):
         if runs and runtime != "normal":
             if runtime == "latest":
                 runtime = runs[-1].runtime
-            state = self.run_frontend.get(runtime) or fetch("run", runtime=runtime).state
+            state = (
+                self.run_frontend.get(runtime) or fetch("run", runtime=runtime).state
+            )
         return {
             "service": service.to_dict(include=["services", "edges"]),
             "runtimes": sorted(set((r.runtime, r.creator) for r in runs)),

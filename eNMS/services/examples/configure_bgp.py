@@ -44,7 +44,7 @@ class ConfigureBgpService(ConnectionService):
             exit-address-family
         """
         config = "\n".join(config.splitlines())
-        run.log("info", "Pushing BGP configuration with Napalm", device)
+        run.log("info", "Pushing BGP configuration with Napalm", device, self)
         napalm_connection.load_merge_candidate(config=config)
         napalm_connection.commit_config()
         return {"success": True, "result": f"Config push ({config})"}

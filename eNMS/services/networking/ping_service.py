@@ -35,7 +35,7 @@ class PingService(Service):
                 if value:
                     command.extend(f"-{x} {value}".split())
             command.append(device.ip_address)
-            run.log("info", f"Running PING ({command})", device)
+            run.log("info", f"Running PING ({command})", device, self)
             output = check_output(command).decode().strip().splitlines()
             total = output[-2].split(",")[3].split()[1]
             loss = output[-2].split(",")[2].split()[0]

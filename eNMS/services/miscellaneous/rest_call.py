@@ -37,7 +37,7 @@ class RestCallService(Service):
 
     def job(self, run, device=None):
         rest_url = run.sub(self.rest_url, locals())
-        run.log("info", f"Sending {self.call_type} Call to {rest_url}", device)
+        run.log("info", f"Sending {self.call_type} Call to {rest_url}", device, self)
         kwargs = {
             p: run.sub(getattr(self, p), locals())
             for p in ("headers", "params", "timeout")

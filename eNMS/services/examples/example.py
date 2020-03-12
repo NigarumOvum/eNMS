@@ -72,7 +72,7 @@ class ExampleService(Service):
     # can also take device as a parameter for these types of services.
     # def job(self, device, payload):
     def job(self, run, device=None):
-        run.log("info", "Logs displayed in real-time as service runs", device)
+        run.log("info", "Logs displayed in real-time as service runs", device, self)
         # The "job" function is called when the service is executed.
         # If the service is running on devices, you must add a "device" argument.
         # If it isn't, this "device" argument should be omitted.

@@ -472,7 +472,7 @@ class Run(AbstractBase):
             results = {"success": False, "runtime": self.runtime, "result": result}
         finally:
             self.close_remaining_connections()
-            
+
             Session.commit()
             results["summary"] = self.run_state.get("summary", None)
             self.status = "Aborted" if self.stop else "Completed"
@@ -619,7 +619,7 @@ class Run(AbstractBase):
                         "runtime": self.runtime,
                         "path": path,
                         "parent_device": device_id,
-                        "device": derived_device.id
+                        "device": derived_device.id,
                     }
                 )
             return
@@ -635,7 +635,9 @@ class Run(AbstractBase):
                         workflow, "destination", "success"
                     ):
                         self.edge_state[edge.id] += 1
-                        neighbor_queue = self.blocking_queue if neighbor.blocking else self.queue
+                        neighbor_queue = (
+                            self.blocking_queue if neighbor.blocking else self.queue
+                        )
                         neighbor_queue.put(
                             {
                                 "runtime": self.runtime,
@@ -729,7 +731,9 @@ class Run(AbstractBase):
                 preworkflow, "destination", "success"
             ):
                 self.edge_state[edge.id] += 1
-                neighbor_queue = self.blocking_queue if neighbor.blocking else self.queue
+                neighbor_queue = (
+                    self.blocking_queue if neighbor.blocking else self.queue
+                )
                 neighbor_queue.put(
                     {
                         "runtime": self.runtime,
@@ -746,7 +750,9 @@ class Run(AbstractBase):
                 for neighbor, edge in neighbors:
                     self.edge_state[edge.id] += 1
                     prepath = ">".join(service_path[:-1])
-                    neighbor_queue = self.blocking_queue if neighbor.blocking else self.queue
+                    neighbor_queue = (
+                        self.blocking_queue if neighbor.blocking else self.queue
+                    )
                     neighbor_queue.put(
                         {
                             "runtime": self.runtime,

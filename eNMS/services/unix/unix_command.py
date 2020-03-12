@@ -18,7 +18,7 @@ class UnixCommandService(Service):
 
     def job(self, run, device):
         command = run.sub(self.command, locals())
-        run.log("info", f"Running UNIX command: {command}", device)
+        run.log("info", f"Running UNIX command: {command}", device, self)
         return {"command": command, "result": check_output(command.split()).decode()}
 
 

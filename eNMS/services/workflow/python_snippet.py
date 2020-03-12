@@ -52,7 +52,9 @@ class PythonSnippetService(Service):
             }
 
         if not results:
-            run.log("info", "Error: Result not set by user code on service instance", self)
+            run.log(
+                "info", "Error: Result not set by user code on service instance", self
+            )
             results = {
                 "success": False,
                 "result": {"error": "Result not set by user code on service instance"},

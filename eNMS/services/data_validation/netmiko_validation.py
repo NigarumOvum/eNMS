@@ -33,7 +33,7 @@ class NetmikoValidationService(ConnectionService):
     def job(self, run, device):
         netmiko_connection = run.netmiko_connection(self, device)
         command = run.sub(self.command, locals())
-        run.log("info", f"Sending '{command}' with Netmiko", device)
+        run.log("info", f"Sending '{command}' with Netmiko", device, self)
         expect_string = run.sub(self.expect_string, locals())
         netmiko_connection.session_log.truncate(0)
         try:
