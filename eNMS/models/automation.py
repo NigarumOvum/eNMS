@@ -549,13 +549,10 @@ class Run(AbstractBase):
                     targets = dict(zip(map(str, targets), targets))
                 for target_name, target_value in targets.items():
                     run[target_name] = target_value
-        success = all(self.run_service(**run) for run in runs)
-        print("success"*100, service, success)
-        return success
+        return all(self.run_service(**run) for run in runs)
 
     def run_service(self, **kwargs):
         device, service = kwargs["device"], kwargs["service"]
-        print("oooo"*200, device, service)
         results = {"runtime": app.get_time()}
         retries, total_retries = service.number_of_retries + 1, 0
         while retries and total_retries < service.max_number_of_retries:
@@ -590,7 +587,7 @@ class Run(AbstractBase):
             except Exception as exc:
                 self.log("error", str(exc), device)
                 result = chr(10).join(format_exc().splitlines())
-                results = {"success": False, "result": result}
+                results.update({"success": False, "result": result})
         self.create_result(results, **kwargs)
         return results["success"]
 
